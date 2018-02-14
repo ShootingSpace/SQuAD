@@ -1,3 +1,6 @@
+''' the code that reads the preprocessed data 
+and prepares it to be consumed by the model.'''
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
