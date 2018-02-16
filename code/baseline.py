@@ -40,12 +40,38 @@ class Encoder(object):
                       through masked steps
         :param encoder_state_input: (Optional) pass this as initial hidden state
                                     to tf.nn.dynamic_rnn to build conditional representations
-        :return: an encoded representation of your input.
-                 It can be context-level representation, word-level representation,
-                 or both.
+        :return:
+                outputs: The RNN output Tensor
+                          an encoded representation of your input.
+                          It can be context-level representation,
+                          word-level representation, or both.
+                state: The final state. 
         """
+        # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
+        cell = tf.contrib.rnn.BasicRNNCell(size, reuse=reuse)
 
-        return
+        cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob=dropout)
+
+
+        # defining initial state
+        if encoder_state_input is not None:
+            initial_state = encoder_state_input
+        else:
+            initial_state = cell.zero_state(batch_size, dtype=tf.float32)
+
+        logging.debug('Inputs: %s' % (inputs.shape))
+        logging.debug('Inputs: %s' % (masks.shape))
+        sequence_length = length(masks)
+
+        #sequence_length = tf.reduce_sum(tf.cast(mask, 'int32'), axis=1)
+
+        outputs, state = tf.nn.dynamic_rnn(cell, inputs, sequence_length,
+                                           initial_state = initial_state,
+                                           dtype = tf.float32)
+
+        logging.debug("output shape: {}".format(output.get_shape()))
+
+        return (output, state)
 
 
 class Decoder(object):

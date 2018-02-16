@@ -9,7 +9,7 @@ import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 from tensorflow.python.ops import variable_scope as vs
-
+from utils import prepro_for_softmax
 from evaluate import exact_match_score, f1_score
 
 logging.basicConfig(level=logging.INFO)
@@ -40,19 +40,48 @@ class Encoder(object):
                       through masked steps
         :param encoder_state_input: (Optional) pass this as initial hidden state
                                     to tf.nn.dynamic_rnn to build conditional representations
-        :return: an encoded representation of your input.
-                 It can be context-level representation, word-level representation,
-                 or both.
+        :return:
+                outputs: The RNN output Tensor
+                          an encoded representation of your input.
+                          It can be context-level representation,
+                          word-level representation, or both.
+                state: The final state.
         """
+        logging.debug('-'*5 + 'encode' + '-'*5)
 
-        return
+        # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
+        cell = tf.contrib.rnn.BasicRNNCell(size, reuse=reuse)
+
+        cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob=dropout)
+
+
+        # defining initial state
+        if encoder_state_input is not None:
+            initial_state = encoder_state_input
+        else:
+            initial_state = cell.zero_state(batch_size, dtype=tf.float32)
+
+        logging.debug('Inputs: %s' % (inputs.shape))
+        logging.debug('Masks: %s' % (masks.shape))
+
+        sequence_length = length(masks)
+
+        # sequence_length = tf.reduce_sum(tf.cast(mask, 'int32'), axis=1)
+        # Outputs Tensor shaped: [batch_size, max_time, cell.output_size]
+        outputs, state = tf.nn.dynamic_rnn(cell, inputs, sequence_length,
+                                           initial_state = initial_state,
+                                           dtype = tf.float32)
+
+        logging.debug("output shape: {}".format(output.get_shape()))
+
+        return (output, state)
 
 
 class Decoder(object):
     def __init__(self, output_size):
         self.output_size = output_size
 
-    def decode(self, knowledge_rep):
+    def decode(self, knowledge_rep, mask, max_input_length, dropout = 1.0):
         """
         takes in a knowledge representation
         and output a probability estimation over
@@ -64,25 +93,54 @@ class Decoder(object):
                               decided by how you choose to implement the encoder
         :return:
         """
+        with tf.variable_scope("start"):
+            start = get_logit(knowledge_rep, max_input_length)
+            start = prepro_for_softmax(start, mask)
 
-        return
+        with tf.variable_scope("end"):
+            end = get_logit(knowledge_rep, max_input_length)
+            end = prepro_for_softmax(end, mask)
+
+        return (start, end)
+
+    def get_logit(self, inputs, max_inputs_length):
+        ''' Get the logit (-inf, inf). '''
+        d = inputs.get_shape().as_list()[-1]
+        assert inputs.get_shape().ndims == 3
+        # -1 is used to infer the shape
+        inputs = tf.reshape(inputs, shape = [-1, d])
+        W = tf.get_variable('W', initializer=tf.contrib.layers.xavier_initializer(), shape=(d, 1), dtype=tf.float32)
+        pred = tf.matmul(inputs, W)
+        pred = tf.reshape(pred, shape = [-1, max_inputs_length])
+        tf.summary.histogram('logit', pred)
+        return pred
+
 
 class QASystem(object):
-    def __init__(self, encoder, decoder, *args):
+    def __init__(self,  result_saver, embeddings, config):
+        """ Initializes System
         """
-        Initializes your System
-
-        :param encoder: an encoder that you constructed in train.py
-        :param decoder: a decoder that you constructed in train.py
-        :param args: pass in more arguments as needed
-        """
+        self.embeddings = embeddings
+        self.config = config
+        self.encoder = Encoder(config.hidden_size)
+        self.decoder = Decoder(config.hidden_size)
 
         # ==== set up placeholder tokens ========
+        self.context_placeholder = tf.placeholder(tf.int32, shape=(None, None))
+        self.context_mask_placeholder = tf.placeholder(tf.bool, shape=(None, None))
+        self.question_placeholder = tf.placeholder(tf.int32, shape=(None, None))
+        self.question_mask_placeholder = tf.placeholder(tf.bool, shape=(None, None))
 
+        self.answer_span_start_placeholder = tf.placeholder(tf.int32)
+        self.answer_span_end_placeholder = tf.placeholder(tf.int32)
+
+        self.max_context_length_placeholder = tf.placeholder(tf.int32)
+        self.max_question_length_placeholder = tf.placeholder(tf.int32)
+        self.dropout_placeholder = tf.placeholder(tf.float32)
 
         # ==== assemble pieces ====
-        with tf.variable_scope("qa", initializer=tf.uniform_unit_scaling_initializer(1.0)):
-            self.setup_embeddings()
+        with tf.variable_scope("baseline", initializer=tf.uniform_unit_scaling_initializer(1.0)):
+            self.question_embeddings, self.context_embeddings = self.setup_embeddings()
             self.setup_system()
             self.setup_loss()
 
@@ -111,10 +169,23 @@ class QASystem(object):
     def setup_embeddings(self):
         """
         Loads distributed word representations based on placeholder tokens
-        :return:
+        :return: embeddings representaion of question and context.
         """
-        with vs.variable_scope("embeddings"):
-            pass
+        with tf.variable_scope("embeddings"):
+            if self.config.retrain_embeddings:
+                embeddings = tf.get_variable("embeddings", initializer=self.embeddings)
+            else:
+                embeddings = tf.cast(self.embeddings, dtype=tf.float32)
+
+            question_embeddings = tf.nn.embedding_lookup(embeddings, self.question_placeholder)
+            question_embeddings = tf.reshape(question_embeddings,
+                        shape = [-1, self.max_question_length_placeholder, self.config.embedding_size])
+
+            context_embeddings = tf.nn.embedding_lookup(embeddings, self.context_placeholder)
+            context_embeddings = tf.reshape(context_embeddings,
+                        shape = [-1, self.max_context_length_placeholder, self.config.embedding_size])
+
+        return question_embeddings, context_embeddings
 
     def optimize(self, session, train_x, train_y):
         """
