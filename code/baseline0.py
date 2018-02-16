@@ -116,10 +116,11 @@ class Decoder(object):
         return pred
 
 
-class QASystem(object):
+class QASystem(Model):
     def __init__(self,  result_saver, embeddings, config):
         """ Initializes System
         """
+        self.model = config.model
         self.embeddings = embeddings
         self.config = config
         self.encoder = Encoder(config.hidden_size)
@@ -131,8 +132,8 @@ class QASystem(object):
         self.question_placeholder = tf.placeholder(tf.int32, shape=(None, None))
         self.question_mask_placeholder = tf.placeholder(tf.bool, shape=(None, None))
 
-        self.answer_span_start_placeholder = tf.placeholder(tf.int32)
-        self.answer_span_end_placeholder = tf.placeholder(tf.int32)
+        self.answer_start_placeholder = tf.placeholder(tf.int32)
+        self.answer_end_placeholder = tf.placeholder(tf.int32)
 
         self.max_context_length_placeholder = tf.placeholder(tf.int32)
         self.max_question_length_placeholder = tf.placeholder(tf.int32)
@@ -187,22 +188,56 @@ class QASystem(object):
 
         return question_embeddings, context_embeddings
 
-    def optimize(self, session, train_x, train_y):
-        """
-        Takes in actual data to optimize your model
-        This method is equivalent to a step() function
-        :return:
-        """
-        input_feed = {}
+    def create_feed_dict(self, question_batch, question_len_batch, context_batch,
+                        context_len_batch, max_context_length=10, max_question_length=10,
+                        answer_batch=None, is_train = True):
+        ''' Fill in this feed_dictionary like: feed_dict['train_x'] = train_x
+        '''
+        feed_dict = {}
+        max_question_length = np.max(question_len_batch)
+        max_context_length = np.max(context_len_batch)
+        def add_paddings(sentence, max_length):
+            mask = [True] * len(sentence)
+            pad_len = max_length - len(sentence)
+            if pad_len > 0:
+                padded_sentence = sentence + [0] * pad_len
+                mask += [False] * pad_len
+            else:
+                padded_sentence = sentence[:max_length]
+                mask = mask[:max_length]
+            return padded_sentence, mask
 
-        # fill in this feed_dictionary like:
-        # input_feed['train_x'] = train_x
+        def padding_batch(data, max_len):
+            padded_data = []
+            padded_mask = []
+            for sentence in data:
+                d, m = add_paddings(sentence, max_len)
+                padded_data.append(d)
+                padded_mask.append(m)
+            return (padded_data, padded_mask)
 
-        output_feed = []
+        question, question_mask = padding_batch(question_batch, max_question_length)
+        context, context_mask = padding_batch(context_batch, max_context_length)
 
-        outputs = session.run(output_feed, input_feed)
+        feed_dict[self.question_placeholder] = question
+        feed_dict[self.question_mask_placeholder] = question_mask
+        feed_dict[self.context_placeholder] = context
+        feed_dict[self.context_mask_placeholder] = context_mask
+        feed_dict[self.max_question_length_placeholder] = max_question_len
+        feed_dict[self.max_context_length_placeholder] = max_context_length
 
-        return outputs
+        if answer_batch is not None:
+            start = answer_batch[:,0]
+            end = answer_batch[:,1]
+            feed_dict[self.answer_start_placeholder] = start
+            feed_dict[self.answer_end_placeholder] = end
+        if is_train:
+            feed_dict[self.dropout_placeholder] = 0.6
+        else:
+            feed_dict[self.dropout_placeholder] = 1.0
+
+        return feed_dict
+
 
     def test(self, session, valid_x, valid_y):
         """
