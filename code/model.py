@@ -279,8 +279,8 @@ class Model(metaclass=ABCMeta):
         for i, batch in enumerate(minibatches(valid_dataset, self.config.batch_size)):
             loss = self.test(sess, batch)[0]
             prog.update(i + 1, [("validation loss", loss)])
-            avg_loss += loss
+            valid_cost += loss
         valid_cost /= batch_num
-        logging.info("Average validation loss: {}".format(avg_loss))
+        logging.info("Average validation loss: {}".format(valid_cost))
 
         return valid_cost
