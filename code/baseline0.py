@@ -19,7 +19,7 @@ class Encoder(object):
         self.size = size
         self.vocab_dim = vocab_dim
 
-    def encode(self, inputs, masks, encoder_state_input = None):
+    def encode(self, inputs, masks, encoder_state_input = None, reuse = False, dropout = 1.0):
         """
         In a generalized encode function, you pass in your inputs,
         masks, and an initial hidden state input into this function.
@@ -39,16 +39,16 @@ class Encoder(object):
         logging.debug('-'*5 + 'encode' + '-'*5)
 
         # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
-        cell = tf.contrib.rnn.BasicRNNCell(size, reuse=reuse)
+        cell = tf.contrib.rnn.BasicRNNCell(size, reuse = reuse)
 
-        cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob=dropout)
+        cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob = dropout)
 
 
         # defining initial state
         if encoder_state_input is not None:
             initial_state = encoder_state_input
         else:
-            initial_state = cell.zero_state(batch_size, dtype=tf.float32)
+            initial_state = cell.zero_state(batch_size, dtype = tf.float32)
 
         logging.debug('Inputs: %s' % (inputs.shape))
         logging.debug('Masks: %s' % (masks.shape))
@@ -66,21 +66,21 @@ class Encoder(object):
         return (output, final_state)
 
 class Decoder(object):
+    """
+    takes in a knowledge representation
+    and output a probability estimation over
+    all paragraph tokens on which token should be
+    the start of the answer span, and which should be
+    the end of the answer span.
+
+    :param knowledge_rep: it is a representation of the paragraph and question,
+                          decided by how you choose to implement the encoder
+    :return: (start, end)
+    """
     def __init__(self, output_size):
         self.output_size = output_size
 
     def decode(self, knowledge_rep, mask, max_input_length, dropout = 1.0):
-        """
-        takes in a knowledge representation
-        and output a probability estimation over
-        all paragraph tokens on which token should be
-        the start of the answer span, and which should be
-        the end of the answer span.
-
-        :param knowledge_rep: it is a representation of the paragraph and question,
-                              decided by how you choose to implement the encoder
-        :return:
-        """
         with tf.variable_scope("start"):
             start = get_logit(knowledge_rep, max_input_length)
             start = prepro_for_softmax(start, mask)
@@ -110,8 +110,8 @@ class QASystem(Model):
         self.model = config.model
         self.embeddings = embeddings
         self.config = config
-        self.encoder = Encoder(config.hidden_size)
-        self.decoder = Decoder(config.hidden_size)
+        self.encoder = Encoder(config.encoder_state_size)
+        self.decoder = Decoder(config.decoder_state_size)
 
         # ==== set up placeholder tokens ========
         self.context_placeholder = tf.placeholder(tf.int32, shape=(None, None))
@@ -166,30 +166,42 @@ class QASystem(Model):
 
         '''Step 1: encode context and question, respectively, with independent weights
         e.g. hq = encode_question(question)  # get U (d*J) as representation of q
-        e.g. hc = encode_context(context, u_state)   # get H (2d*T) as representation of x
+        e.g. hc = encode_context(context, q_state)   # get H (d*T) as representation of x
         '''
+        logging.info(("-" * 10, "ENCODING ", "-" * 10))
         with tf.variable_scope('q'):
             hq, question_state = \
                 self.encoder.encode(self.question_embeddings,
                                     self.question_mask_placeholder)
             if self.config.QA_ENCODER_SHARE:
-                tf.get_variable_scope().reuse_variables()
+                #tf.get_variable_scope().reuse_variables()
                 hc, context_state =\
                      self.encoder.encode(self.context_embeddings,
                                          self.context_mask_placeholder,
-                                         encoder_state_input=u_state)
+                                         encoder_state_input = question_state,
+                                         reuse = True)
 
         if not self.config.QA_ENCODER_SHARE:
             with tf.variable_scope('c'):
                 hc, context_state =\
                      self.encoder.encode(self.context_embeddings,
                                          self.context_mask_placeholder,
-                                         encoder_state_input=u_state)
+                                         encoder_state_input = question_state)
 
-        assert hc.get_shape().as_list() == [None, None, d_en], "Expected {}, got {}".format([None, JX, d_en], h.get_shape().as_list())
-        assert hq.get_shape().as_list() == [None, None, d_en], "Expected {}, got {}".format([None, JQ, d_en], u.get_shape().as_list())
+        assert hc.get_shape().as_list() == [None, None, self.config.encoder_state_size], (
+                "Expected {}, got {}".format([None, self.max_context_length_placeholder,
+                self.config.encoder_state_size], hc.get_shape().as_list()))
+        assert hq.get_shape().as_list() == [None, None, self.config.encoder_state_size], (
+                "Expected {}, got {}".format([None, self.max_question_length_placeholder,
+                self.config.encoder_state_size], hq.get_shape().as_list()))
 
-
+        '''Step 2: decoding
+        '''
+        logging.info(("-" * 10, " DECODING ", "-" * 10))
+        with tf.variable_scope("decoding"):
+            start, end = self.decoder.decode(hc, self.context_mask_placeholder,
+                                             self.max_context_length_placeholder, self.dropout_placeholder)
+        return start, end
 
 
 
