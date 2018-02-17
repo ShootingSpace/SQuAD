@@ -81,7 +81,7 @@ def initialize_vocab(vocab_path):
 
 def get_normalized_train_dir(train_dir):
     """
-    Adds symlink to {train_dir} from /tmp/cs224n-squad-train to canonicalize the
+    Adds symlink to train_dir from /tmp/cs224n-squad-train to canonicalize the
     file paths saved in the checkpoint. This allows the model to be reloaded even
     if the location of the checkpoint files has moved, allowing usage with CodaLab.
     This must be done on both train.py and qa_answer.py in order to work.

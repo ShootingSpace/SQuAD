@@ -9,7 +9,7 @@ import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 from tensorflow.python.ops import variable_scope as vs
-from utils.util import variable_summaries, get_optimizer, prepro_for_softmax, ConfusionMatrix, Progbar, minibatches, one_hot, minibatch, get_best_span
+from utils.util import variable_summaries, get_optimizer, softmax_mask_prepro, ConfusionMatrix, Progbar, minibatches, one_hot, minibatch, get_best_span
 from utils.evaluate import exact_match_score, f1_score
 from model import Model
 
@@ -50,7 +50,8 @@ class Encoder(object):
         if encoder_state_input is not None:
             initial_state = encoder_state_input
         else:
-            initial_state = cell.zero_state(self.config.batch_size, dtype = tf.float32)
+            #initial_state = cell.zero_state(self.config.batch_size, dtype = tf.float32)
+            initial_state = None
 
         logging.debug('Inputs: %s' % (inputs.shape))
         logging.debug('Masks: %s' % (masks.shape))
@@ -85,12 +86,12 @@ class Decoder(object):
 
     def decode(self, knowledge_rep, mask, max_input_length, dropout = 1.0):
         with tf.variable_scope("start"):
-            start = get_logit(knowledge_rep, max_input_length)
-            start = prepro_for_softmax(start, mask)
+            start = self.get_logit(knowledge_rep, max_input_length)
+            start = softmax_mask_prepro(start, mask)
 
         with tf.variable_scope("end"):
-            end = get_logit(knowledge_rep, max_input_length)
-            end = prepro_for_softmax(end, mask)
+            end = self.get_logit(knowledge_rep, max_input_length)
+            end = softmax_mask_prepro(end, mask)
 
         return (start, end)
 

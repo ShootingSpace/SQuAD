@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 from os.path import join as pjoin
 from abc import ABCMeta, abstractmethod
-from utils.util import variable_summaries, get_optimizer, prepro_for_softmax, ConfusionMatrix, Progbar, minibatches, one_hot, minibatch, get_best_span
+from utils.util import variable_summaries, get_optimizer, softmax_mask_prepro, ConfusionMatrix, Progbar, minibatches, one_hot, minibatch, get_best_span
 
 logging.basicConfig(level=logging.INFO)
 
