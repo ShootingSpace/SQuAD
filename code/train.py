@@ -9,8 +9,10 @@ import tensorflow as tf
 
 from qa_model import Encoder, QASystem, Decoder
 from os.path import join as pjoin
+from utils.data_reader import read_data, load_glove_embeddings
 
 import logging
+import basline0
 
 logging.basicConfig(level=logging.INFO)
 
@@ -18,7 +20,7 @@ tf.app.flags.DEFINE_float("learning_rate", 0.01, "Learning rate.")
 tf.app.flags.DEFINE_float("max_gradient_norm", 10.0, "Clip gradients to this norm.")
 tf.app.flags.DEFINE_float("dropout", 0.15, "Fraction of units randomly dropped on non-recurrent connections.")
 tf.app.flags.DEFINE_integer("batch_size", 32, "Batch size to use during training.")
-tf.app.flags.DEFINE_integer("epochs", 10, "Number of epochs to train.")
+tf.app.flags.DEFINE_integer("epochs", 30, "Number of epochs to train.")
 tf.app.flags.DEFINE_integer("state_size", 200, "Size of each model layer.")
 tf.app.flags.DEFINE_integer("output_size", 750, "The output size of your model.")
 tf.app.flags.DEFINE_integer("embedding_size", 100, "Size of the pretrained vocabulary.")
@@ -32,6 +34,12 @@ tf.app.flags.DEFINE_integer("keep", 0, "How many checkpoints to keep, 0 indicate
 tf.app.flags.DEFINE_string("vocab_path", "data/squad/vocab.dat", "Path to vocab file (default: ./data/squad/vocab.dat)")
 tf.app.flags.DEFINE_string("embed_path", "", "Path to the trimmed GLoVe embedding (default: ./data/squad/glove.trimmed.{embedding_size}.npz)")
 
+tf.app.flags.DEFINE_string("which_model", "Baseline", "Which model to run")
+tf.app.flags.DEFINE_string("question_maxlen", None, "Max length of question (default: 30")
+tf.app.flags.DEFINE_string("context_maxlen", None, "Max length of the context (default: 400)")
+f.app.flags.DEFINE_string("exdma_weight_decay", 0.999, "exponential decay for moving averages ")
+
+
 FLAGS = tf.app.flags.FLAGS
 
 
@@ -40,7 +48,8 @@ def initialize_model(session, model, train_dir):
     v2_path = ckpt.model_checkpoint_path + ".index" if ckpt else ""
     if ckpt and (tf.gfile.Exists(ckpt.model_checkpoint_path) or tf.gfile.Exists(v2_path)):
         logging.info("Reading model parameters from %s" % ckpt.model_checkpoint_path)
-        model.saver.restore(session, ckpt.model_checkpoint_path)
+        saver = tf.train.Saver()
+        saver.restore(session, ckpt.model_checkpoint_path)
     else:
         logging.info("Created model with fresh parameters.")
         session.run(tf.global_variables_initializer())
@@ -77,18 +86,28 @@ def get_normalized_train_dir(train_dir):
 
 
 def main(_):
-
-    # Do what you need to load datasets from FLAGS.data_dir
-    dataset = None
+    # load datasets from FLAGS.data_dir
+    dataset = read_data(FLAGS.data_dir)
+    if FLAGS.context_maxlen is None:
+        FLAGS.context_maxlen = dataset['context_maxlen']
+    if FLAGS.question_maxlen is None:
+        FLAGS.question_maxlen = dataset['question_maxlen']
 
     embed_path = FLAGS.embed_path or pjoin("data", "squad", "glove.trimmed.{}.npz".format(FLAGS.embedding_size))
+    embeddings = load_glove_embeddings(embed_path)
+
     vocab_path = FLAGS.vocab_path or pjoin(FLAGS.data_dir, "vocab.dat")
     vocab, rev_vocab = initialize_vocab(vocab_path)
 
-    encoder = Encoder(size=FLAGS.state_size, vocab_dim=FLAGS.embedding_size)
-    decoder = Decoder(output_size=FLAGS.output_size)
+    # encoder = Encoder(size=FLAGS.state_size, vocab_dim=FLAGS.embedding_size)
+    # decoder = Decoder(output_size=FLAGS.output_size)
 
-    qa = QASystem(encoder, decoder)
+    if FLAGS.which_model == "Baseline":
+        qa = baseline0.QASystem(embeddings, FLAGS)
+    # elif FLAGS.which_model == "BiDAF":
+    #         model = BiDAF(embeddings, FLAGS)
+    # elif FLAGS.which_model == "LuongAttention":
+    #     model = LuongAttention(embeddings, FLAGS)
 
     if not os.path.exists(FLAGS.log_dir):
         os.makedirs(FLAGS.log_dir)
@@ -104,7 +123,7 @@ def main(_):
         initialize_model(sess, qa, load_train_dir)
 
         save_train_dir = get_normalized_train_dir(FLAGS.train_dir)
-        qa.train(sess, dataset, save_train_dir)
+        qa.train(sess, dataset, save_train_dir, rev_vocab, FLAGS.which_model)
 
         qa.evaluate_answer(sess, dataset, vocab, FLAGS.evaluate, log=True)
 

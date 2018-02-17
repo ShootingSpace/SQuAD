@@ -14,17 +14,6 @@ from evaluate import exact_match_score, f1_score
 
 logging.basicConfig(level=logging.INFO)
 
-
-def get_optimizer(opt):
-    if opt == "adam":
-        optfn = tf.train.AdamOptimizer
-    elif opt == "sgd":
-        optfn = tf.train.GradientDescentOptimizer
-    else:
-        assert (False)
-    return optfn
-
-
 class Encoder(object):
     def __init__(self, size, vocab_dim):
         self.size = size
@@ -76,7 +65,6 @@ class Encoder(object):
 
         return (output, state)
 
-
 class Decoder(object):
     def __init__(self, output_size):
         self.output_size = output_size
@@ -115,9 +103,8 @@ class Decoder(object):
         tf.summary.histogram('logit', pred)
         return pred
 
-
 class QASystem(Model):
-    def __init__(self,  result_saver, embeddings, config):
+    def __init__(self, embeddings, config):
         """ Initializes System
         """
         self.model = config.model
@@ -146,17 +133,43 @@ class QASystem(Model):
             self.setup_loss()
 
         # ==== set up training/updating procedure ====
-        pass
+        # With gradient clipping:
+        opt_op = get_optimizer("adam", self.loss, config.max_gradient_norm, config.learning_rate)
 
+        if config.exdma_weight_decay is not None:
+            self.train_op = self.build_exdma(opt_op)
+        else:
+            self.train_op = opt_op
+        self.merged = tf.summary.merge_all()
 
-    def setup_system(self):
+    def build_exdma(self, opt_op):
+        ''' Implement learning rate annealing'''
+        self.exdma = tf.train.ExponentialMovingAverage(self.config.exdma_weight_decay)
+        exdma_op = self.exdma.apply(tf.trainable_variables())
+        with tf.control_dependencies([opt_op]):
+            train_op = tf.group(exdma_op)
+        return train_op
+
+    def setup_system(self, context, question):
         """
+        Connect all parts of your system here:
         After your modularized implementation of encoder and decoder
         you should call various functions inside encoder, decoder here
         to assemble your reading comprehension system!
+        context: [None, max_context_length, d]
+        question: [None, max_question_length, d]
         :return:
         """
-        raise NotImplementedError("Connect all parts of your system here!")
+        raise NotImplementedError("")
+        d = context.get_shape().as_list()[-1] # self.config.embedding_size
+        assert x.get_shape().ndims == 3
+        assert q.get_shape().ndims == 3
+
+        '''Step 1: encode context and question, respectively, with independent weights
+        e.g. u = encode_question(question)  # get U (d*J) as representation of q
+        e.g. h = encode_context(context, u_state)   # get H (2d*T) as representation of x
+        '''
+
 
 
     def setup_loss(self):
@@ -325,39 +338,3 @@ class QASystem(Model):
             logging.info("F1: {}, EM: {}, for {} samples".format(f1, em, sample))
 
         return f1, em
-
-    def train(self, session, dataset, train_dir):
-        """
-        Implement main training loop
-
-        TIPS:
-        You should also implement learning rate annealing (look into tf.train.exponential_decay)
-        Considering the long time to train, you should save your model per epoch.
-
-        More ambitious appoarch can include implement early stopping, or reload
-        previous models if they have higher performance than the current one
-
-        As suggested in the document, you should evaluate your training progress by
-        printing out information every fixed number of iterations.
-
-        We recommend you evaluate your model performance on F1 and EM instead of just
-        looking at the cost.
-
-        :param session: it should be passed in from train.py
-        :param dataset: a representation of our data, in some implementations, you can
-                        pass in multiple components (arguments) of one dataset to this function
-        :param train_dir: path to the directory where you should save the model checkpoint
-        :return:
-        """
-
-        # some free code to print out number of parameters in your model
-        # it's always good to check!
-        # you will also want to save your model parameters in train_dir
-        # so that you can use your trained model to make predictions, or
-        # even continue training
-
-        tic = time.time()
-        params = tf.trainable_variables()
-        num_params = sum(map(lambda t: np.prod(tf.shape(t.value()).eval()), params))
-        toc = time.time()
-        logging.info("Number of params: %d (retreival took %f secs)" % (num_params, toc - tic))

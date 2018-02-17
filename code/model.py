@@ -34,6 +34,38 @@ class Model(metaclass=ABCMeta):
     def setup_embeddings(self):
         pass
 
+    def variable_summaries(var):
+    """ Attach summaries to a Tensor (for TensorBoard visualization)."""
+        with tf.name_scope('summaries'):
+            mean = tf.reduce_mean(var)
+            tf.summary.scalar('mean', mean)
+            with tf.name_scope('stddev'):
+                stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+            tf.summary.scalar('stddev', stddev)
+            tf.summary.scalar('max', tf.reduce_max(var))
+            tf.summary.scalar('min', tf.reduce_min(var))
+            tf.summary.histogram('histogram', var)
+
+    def get_optimizer(opt, loss, max_grad_norm, learning_rate):
+        '''With gradient clipping'''
+        if opt == "adam":
+            optfn = tf.train.AdamOptimizer(learning_rate=learning_rate)
+        elif opt == "sgd":
+            optfn = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
+        else:
+            assert (False)
+
+        grads_and_vars = optfn.compute_gradients(loss)
+        variables = [output[1] for output in grads_and_vars]
+        gradients = [output[0] for output in grads_and_vars]
+
+        gradients = tf.clip_by_global_norm(gradients, clip_norm=max_grad_norm)[0]
+        grads_and_vars = [(gradients[i], variables[i]) for i in range(len(gradients))]
+        train_op = optfn.apply_gradients(grads_and_vars)
+
+        return train_op
+
+
     def build(self, config, result_saver):
         self.config = config
         #self.result_saver = result_saver
@@ -41,14 +73,34 @@ class Model(metaclass=ABCMeta):
         self.loss = self.add_loss_op(self.preds)
         self.train_op = self.add_training_op(self.loss)
 
-    def train(self, session, dataset, train_dir, vocab):
-        '''
-        dataset: a dict
+    def train(self, session, dataset, train_dir, vocab, which_model):
+        ''' Implement main training loop
+        TIPS:
+        You should also implement learning rate annealing (look into tf.train.exponential_decay)
+        Considering the long time to train, you should save your model per epoch.
+
+        More ambitious appoarch can include implement early stopping, or reload
+        previous models if they have higher performance than the current one
+
+        As suggested in the document, you should evaluate your training progress by
+        printing out information every fixed number of iterations.
+
+        We recommend you evaluate your model performance on F1 and EM instead of just
+        looking at the cost.
+
+        you will also want to save your model parameters in train_dir
+        so that you can use your trained model to make predictions, or
+        even continue training
+
+        :param session: it should be passed in from train.py
+        :param dataset: a dict of representation of our data,
             {"training": train, "validation": val,
             "question_maxlen": max_q_len,
             "context_maxlen": max_c_len}
         dataset['training']: a list
             [question, len(question), context, len(context), answer]
+        :param train_dir: path to the directory where you should save the model checkpoint
+
         '''
         tic = time.time()
         params = tf.trainable_variables()
@@ -74,7 +126,7 @@ class Model(metaclass=ABCMeta):
             if f1>f1_best:
                 f1_best = f1
                 saver = tf.train.Saver()
-                saver.save(session, train_dir+'/fancier_model')
+                saver.save(session, train_dir + which_model)
                 logging.info('New best f1 in val set')
             logging.info('')
 
@@ -117,5 +169,3 @@ class Model(metaclass=ABCMeta):
         outputs = session.run(output_feed, input_feed)
 
         return outputs
-
-    
