@@ -12,13 +12,13 @@ from os.path import join as pjoin
 from utils.data_reader import read_data, load_glove_embeddings
 
 import logging
-import basline0
+import baseline0
 
 logging.basicConfig(level=logging.INFO)
 
-tf.app.flags.DEFINE_float("learning_rate", 0.01, "Learning rate.")
+tf.app.flags.DEFINE_float("learning_rate", 0.001, "Learning rate.")
 tf.app.flags.DEFINE_float("max_gradient_norm", 10.0, "Clip gradients to this norm.")
-tf.app.flags.DEFINE_float("dropout", 0.15, "Fraction of units randomly dropped on non-recurrent connections.")
+tf.app.flags.DEFINE_float("dropout", 0.25, "Fraction of units randomly dropped on non-recurrent connections.")
 tf.app.flags.DEFINE_integer("batch_size", 32, "Batch size to use during training.")
 tf.app.flags.DEFINE_integer("epochs", 30, "Number of epochs to train.")
 
@@ -41,8 +41,14 @@ tf.app.flags.DEFINE_string("embed_path", "", "Path to the trimmed GLoVe embeddin
 tf.app.flags.DEFINE_string("which_model", "Baseline", "Which model to run")
 tf.app.flags.DEFINE_string("question_maxlen", None, "Max length of question (default: 30")
 tf.app.flags.DEFINE_string("context_maxlen", None, "Max length of the context (default: 400)")
-f.app.flags.DEFINE_string("exdma_weight_decay", 0.999, "exponential decay for moving averages ")
+tf.app.flags.DEFINE_string("log_batch_num", 100, "Number of batches to write logs on tensorboard.")
+tf.app.flags.DEFINE_string("RE_TRAIN_EMBED", False, "Max length of the context (default: 400)")
+tf.app.flags.DEFINE_string("exdma_weight_decay", 0.999, "exponential decay for moving averages ")
 tf.app.flags.DEFINE_string("QA_ENCODER_SHARE", False, "Share the encoder weights")
+tf.app.flags.DEFINE_string("tensorboard", True, "Write tensorboard log or not.")
+tf.app.flags.DEFINE_string("evaluate_sample_size", 100, "number of samples for evaluation (default: 100)")
+tf.app.flags.DEFINE_string("model_selection_sample_size", 1000, "# samples for making model update decision (default: 1000)")
+tf.app.flags.DEFINE_integer("window_batch", 3, "window size / batch size")
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -129,7 +135,7 @@ def main(_):
         save_train_dir = get_normalized_train_dir(FLAGS.train_dir)
         qa.train(sess, dataset, save_train_dir, rev_vocab, FLAGS.which_model)
 
-        qa.evaluate_answer(sess, dataset, vocab, FLAGS.evaluate, log=True)
+        #qa.evaluate_answer(sess, dataset, vocab, FLAGS.evaluate, log=True)
 
 if __name__ == "__main__":
     tf.app.run()

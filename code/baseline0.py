@@ -9,15 +9,17 @@ import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 from tensorflow.python.ops import variable_scope as vs
-from utils import prepro_for_softmax
-from evaluate import exact_match_score, f1_score
+from utils.util import variable_summaries, get_optimizer, prepro_for_softmax, ConfusionMatrix, Progbar, minibatches, one_hot, minibatch, get_best_span
+from utils.evaluate import exact_match_score, f1_score
+from model import Model
 
 logging.basicConfig(level=logging.INFO)
 
 class Encoder(object):
-    def __init__(self, size, vocab_dim):
+    def __init__(self, size, config):
         self.size = size
-        self.vocab_dim = vocab_dim
+        self.config = config
+        #self.vocab_dim = vocab_dim
 
     def encode(self, inputs, masks, encoder_state_input = None, reuse = False, dropout = 1.0):
         """
@@ -39,7 +41,7 @@ class Encoder(object):
         logging.debug('-'*5 + 'encode' + '-'*5)
 
         # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
-        cell = tf.contrib.rnn.BasicRNNCell(size, reuse = reuse)
+        cell = tf.contrib.rnn.BasicRNNCell(self.size, reuse = reuse)
 
         cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob = dropout)
 
@@ -48,12 +50,13 @@ class Encoder(object):
         if encoder_state_input is not None:
             initial_state = encoder_state_input
         else:
-            initial_state = cell.zero_state(batch_size, dtype = tf.float32)
+            initial_state = cell.zero_state(self.config.batch_size, dtype = tf.float32)
 
         logging.debug('Inputs: %s' % (inputs.shape))
         logging.debug('Masks: %s' % (masks.shape))
 
-        sequence_length = length(masks)
+        sequence_length = tf.reduce_sum(tf.cast(masks, 'int32'), axis=1)
+        sequence_length = tf.reshape(sequence_length, [-1,])
 
         # sequence_length = tf.reduce_sum(tf.cast(mask, 'int32'), axis=1)
         # Outputs Tensor shaped: [batch_size, max_time, cell.output_size]
@@ -61,9 +64,9 @@ class Encoder(object):
                                            initial_state = initial_state,
                                            dtype = tf.float32)
 
-        logging.debug("output shape: {}".format(output.get_shape()))
+        logging.debug("output shape: {}".format(outputs.get_shape()))
 
-        return (output, final_state)
+        return (outputs, final_state)
 
 class Decoder(object):
     """
@@ -107,10 +110,10 @@ class QASystem(Model):
     def __init__(self, embeddings, config):
         """ Initializes System
         """
-        self.model = config.model
+        #self.model = config.model
         self.embeddings = embeddings
         self.config = config
-        self.encoder = Encoder(config.encoder_state_size)
+        self.encoder = Encoder(config.encoder_state_size, self.config)
         self.decoder = Decoder(config.decoder_state_size)
 
         # ==== set up placeholder tokens ========
@@ -129,12 +132,12 @@ class QASystem(Model):
         # ==== assemble pieces ====
         with tf.variable_scope("baseline", initializer=tf.uniform_unit_scaling_initializer(1.0)):
             self.question_embeddings, self.context_embeddings = self.setup_embeddings()
-            self.setup_system()
-            self.setup_loss()
+            self.preds = self.setup_system()
+            self.loss = self.setup_loss(self.preds)
 
         # ==== set up training/updating procedure ====
-        # With gradient clipping:
-        opt_op = get_optimizer("adam", self.loss, config.max_gradient_norm, config.learning_rate)
+        ''' With gradient clipping'''
+        opt_op = get_optimizer(self.config.optimizer, self.loss, config.max_gradient_norm, config.learning_rate)
 
         if config.exdma_weight_decay is not None:
             self.train_op = self.build_exdma(opt_op)
@@ -143,7 +146,7 @@ class QASystem(Model):
         self.merged = tf.summary.merge_all()
 
     def build_exdma(self, opt_op):
-        ''' Implement learning rate annealing'''
+        ''' Implement Exponential Moving Average'''
         self.exdma = tf.train.ExponentialMovingAverage(self.config.exdma_weight_decay)
         exdma_op = self.exdma.apply(tf.trainable_variables())
         with tf.control_dependencies([opt_op]):
@@ -160,9 +163,9 @@ class QASystem(Model):
         question: [None, max_question_length, d]
         :return:
         """
-        d = context.get_shape().as_list()[-1] # self.config.embedding_size
-        assert x.get_shape().ndims == 3
-        assert q.get_shape().ndims == 3
+        d = self.context_embeddings.get_shape().as_list()[-1] # self.config.embedding_size
+        assert self.context_embeddings.get_shape().ndims == 3
+        assert self.question_embeddings.get_shape().ndims == 3
 
         '''Step 1: encode context and question, respectively, with independent weights
         e.g. hq = encode_question(question)  # get U (d*J) as representation of q
@@ -203,15 +206,22 @@ class QASystem(Model):
                                              self.max_context_length_placeholder, self.dropout_placeholder)
         return start, end
 
-
-
-    def setup_loss(self):
-        """
-        Set up your loss computation here
+    def setup_loss(self, preds):
+        """ Set up loss computation
         :return:
         """
         with vs.variable_scope("loss"):
-            pass
+            s, e = preds # [None, max length]
+            assert s.get_shape().ndims == 2
+            assert e.get_shape().ndims == 2
+            loss1 = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=s, labels=self.answer_start_placeholder),)
+            loss2 = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=e, labels=self.answer_end_placeholder),)
+            # loss1 = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=s, labels=self.answer_start_placeholder),)
+            # loss2 = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=e, labels=self.answer_end_placeholder),)
+        loss = loss1 + loss2
+        tf.summary.scalar('loss', loss)
+
+        return loss
 
     def setup_embeddings(self):
         """
@@ -219,7 +229,7 @@ class QASystem(Model):
         :return: embeddings representaion of question and context.
         """
         with tf.variable_scope("embeddings"):
-            if self.config.retrain_embeddings:
+            if self.config.RE_TRAIN_EMBED:
                 embeddings = tf.get_variable("embeddings", initializer=self.embeddings)
             else:
                 embeddings = tf.cast(self.embeddings, dtype=tf.float32)
@@ -283,91 +293,3 @@ class QASystem(Model):
             feed_dict[self.dropout_placeholder] = 1.0
 
         return feed_dict
-
-
-    def test(self, session, valid_x, valid_y):
-        """
-        in here you should compute a cost for your validation set
-        and tune your hyperparameters according to the validation set performance
-        :return:
-        """
-        input_feed = {}
-
-        # fill in this feed_dictionary like:
-        # input_feed['valid_x'] = valid_x
-
-        output_feed = []
-
-        outputs = session.run(output_feed, input_feed)
-
-        return outputs
-
-    def decode(self, session, test_x):
-        """
-        Returns the probability distribution over different positions in the paragraph
-        so that other methods like self.answer() will be able to work properly
-        :return:
-        """
-        input_feed = {}
-
-        # fill in this feed_dictionary like:
-        # input_feed['test_x'] = test_x
-
-        output_feed = []
-
-        outputs = session.run(output_feed, input_feed)
-
-        return outputs
-
-    def answer(self, session, test_x):
-
-        yp, yp2 = self.decode(session, test_x)
-
-        a_s = np.argmax(yp, axis=1)
-        a_e = np.argmax(yp2, axis=1)
-
-        return (a_s, a_e)
-
-    def validate(self, sess, valid_dataset):
-        """
-        Iterate through the validation dataset and determine what
-        the validation cost is.
-
-        This method calls self.test() which explicitly calculates validation cost.
-
-        How you implement this function is dependent on how you design
-        your data iteration function
-
-        :return:
-        """
-        valid_cost = 0
-
-        for valid_x, valid_y in valid_dataset:
-          valid_cost = self.test(sess, valid_x, valid_y)
-
-
-        return valid_cost
-
-    def evaluate_answer(self, session, dataset, sample=100, log=False):
-        """
-        Evaluate the model's performance using the harmonic mean of F1 and Exact Match (EM)
-        with the set of true answer labels
-
-        This step actually takes quite some time. So we can only sample 100 examples
-        from either training or testing set.
-
-        :param session: session should always be centrally managed in train.py
-        :param dataset: a representation of our data, in some implementations, you can
-                        pass in multiple components (arguments) of one dataset to this function
-        :param sample: how many examples in dataset we look at
-        :param log: whether we print to std out stream
-        :return:
-        """
-
-        f1 = 0.
-        em = 0.
-
-        if log:
-            logging.info("F1: {}, EM: {}, for {} samples".format(f1, em, sample))
-
-        return f1, em

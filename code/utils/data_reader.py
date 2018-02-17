@@ -7,6 +7,32 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
+class Config(object):
+    def __init__(self, data_dir, small_dir=None, small_val = None, sorted_data = False):
+            # self.val_answer_file = pjoin(data_dir, 'val.answer')
+        if sorted_data:
+            self.train_answer_span_file = pjoin(data_dir, 'train.span_sorted')
+            self.train_question_file = pjoin(data_dir, 'train.ids.question_sorted')
+            self.train_context_file = pjoin(data_dir, 'train.ids.context_sorted')
+        else:
+            if small_dir is None:
+                # self.train_answer_file = pjoin(data_dir, 'train.answer')
+                self.train_answer_span_file = pjoin(data_dir, 'train.span')
+                self.train_question_file = pjoin(data_dir, 'train.ids.question')
+                self.train_context_file = pjoin(data_dir, 'train.ids.context')
+            else:
+                self.train_answer_span_file = pjoin(data_dir, 'train.span_' + str(small_dir))
+                self.train_question_file = pjoin(data_dir, 'train.ids.question_' + str(small_dir))
+                self.train_context_file = pjoin(data_dir, 'train.ids.context_' + str(small_dir))
+
+        if small_val is None:
+            self.val_answer_span_file = pjoin(data_dir, 'val.span')
+            self.val_question_file = pjoin(data_dir, 'val.ids.question')
+            self.val_context_file = pjoin(data_dir, 'val.ids.context')
+        else:
+            self.val_answer_span_file = pjoin(data_dir, 'val.span_')+str(small_val)
+            self.val_question_file = pjoin(data_dir, 'val.ids.question_')+str(small_val)
+            self.val_context_file = pjoin(data_dir, 'val.ids.context_')+str(small_val)
 
 def load_glove_embeddings(embed_path):
     logger.info("Loading glove embedding...")
@@ -18,6 +44,7 @@ def load_glove_embeddings(embed_path):
 def add_paddings(sentence, max_length, n_features=1):
     mask = [True] * len(sentence)
     pad_len = max_length - len(sentence)
+    
     if pad_len > 0:
         padded_sentence = sentence + [0] * pad_len
         mask += [False] * pad_len
@@ -38,7 +65,8 @@ def preprocess_dataset(dataset, question_maxlen, context_maxlen):
 def strip(x):
     return list(map(int, x.decode().strip().split(" ")))
 
-def read_data(data_dir, small_dir=None, small_val = None, question_maxlen=None, context_maxlen=None, debug_train_samples=None, debug_val_samples=None):
+def read_data(data_dir, small_dir = None, small_val = None, question_maxlen = None,
+                context_maxlen = None, debug_train_samples = None, debug_val_samples = None):
     config = Config(data_dir, small_dir=small_dir, small_val = small_val)
 
     train = []
