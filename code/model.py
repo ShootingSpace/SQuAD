@@ -37,7 +37,7 @@ class Model(metaclass=ABCMeta):
         pass
 
     def __init__(self, config):
-        self.config = config    
+        self.config = config
 
     def train(self, session, dataset, train_dir, vocab, which_model):
         ''' Implement main training loop
@@ -104,11 +104,10 @@ class Model(metaclass=ABCMeta):
             logging.info('')
 
     def run_epoch(self, session, epoch_num, training_set, vocab, validation_set,
-                    sample_size=400):
+                    sample_size = 400):
         set_num = len(training_set)
         batch_size = self.config.batch_size
         batch_num = int(np.ceil(set_num * 1.0 / batch_size))
-        sample_size = 400
 
         prog = Progbar(target=batch_num)
         avg_loss = 0
@@ -123,8 +122,9 @@ class Model(metaclass=ABCMeta):
                 self.train_writer.add_summary(summary, global_batch_num)
 
             if (i+1) % self.config.log_batch_num == 0:
-                logging.info('')
+                logging.info('eval - on training ')
                 self.evaluate_answer(session, training_set, vocab, sample=sample_size, log=True)
+                logging.info('eval - on dev ')
                 self.evaluate_answer(session, validation_set, vocab, sample=sample_size, log=True)
 
             avg_loss += loss
@@ -132,6 +132,52 @@ class Model(metaclass=ABCMeta):
         avg_loss /= batch_num
         logging.info("Average training loss: {}".format(avg_loss))
         return avg_loss
+
+    def evaluate_answer(self, session, dataset, vocab, sample = 100, log = False):
+        """
+        Evaluate the model's performance using the harmonic mean of F1 and Exact Match (EM)
+        with the set of true answer labels
+
+        This step actually takes quite some time. So we can only sample 100 examples
+        from either training or testing set.
+
+        :param session: session should always be centrally managed in train.py
+        :param dataset: a representation of our data, in some implementations, you can
+                        pass in multiple components (arguments) of one dataset to this function
+        :param sample: how many examples in dataset we look at
+        :param log: whether we print to std out stream
+        :return:
+        """
+
+        f1 = 0.
+        em = 0.
+
+        N = len(dataset)
+        sampleIndices = np.random.choice(N, sample, replace = False)
+        evaluate_set = [dataset[i] for i in sampleIndices]
+        predicts = self.predict_on_batch(session, evaluate_set)
+
+        for example, (start, end) in zip(evaluate_set, predicts):
+            q, _, c, _, (true_s, true_e) = example
+            # print (start, end, true_s, true_e)
+            context_words = [vocab[w] for w in c]
+
+            true_answer = ' '.join(context_words[true_s : true_e + 1])
+            if start <= end:
+                predict_answer = ' '.join(context_words[start : end + 1])
+            else:
+                predict_answer = ''
+
+            f1 += f1_score(predict_answer, true_answer)
+            em += exact_match_score(predict_answer, true_answer)
+
+        f1 = 100 * f1 / sample
+        em = 100 * em / sample
+
+        if log:
+            logging.info("F1: {}, EM: {}, for {} samples".format(f1, em, sample))
+
+        return f1, em
 
     def optimize(self, session, training_set):
         """ Takes in actual data to optimize your model
@@ -164,7 +210,7 @@ class Model(metaclass=ABCMeta):
 
         return outputs
 
-    
+
     def predict_on_batch(self, session, dataset):
         batch_num = int(np.ceil(len(dataset) * 1.0 / self.config.batch_size))
         # prog = Progbar(target=batch_num)
@@ -238,50 +284,3 @@ class Model(metaclass=ABCMeta):
         logging.info("Average validation loss: {}".format(avg_loss))
 
         return valid_cost
-
-    def evaluate_answer(self, session, dataset, vocab, sample = 100, log = False):
-        """
-        Evaluate the model's performance using the harmonic mean of F1 and Exact Match (EM)
-        with the set of true answer labels
-
-        This step actually takes quite some time. So we can only sample 100 examples
-        from either training or testing set.
-
-        :param session: session should always be centrally managed in train.py
-        :param dataset: a representation of our data, in some implementations, you can
-                        pass in multiple components (arguments) of one dataset to this function
-        :param sample: how many examples in dataset we look at
-        :param log: whether we print to std out stream
-        :return:
-        """
-
-        f1 = 0.
-        em = 0.
-
-        N = len(dataset)
-        sampleIndices = np.random.choice(N, sample, replace = False)
-        evaluate_set = [dataset[i] for i in sampleIndices]
-        predicts = self.predict_on_batch(session, evaluate_set)
-        
-        for example, (start, end) in zip(evaluate_set, predicts):
-            q, _, c, _, (true_s, true_e) = example
-            # print (start, end, true_s, true_e)
-            context_words = [vocab[w] for w in c]
-
-            true_answer = ' '.join(context_words[true_s : true_e + 1])
-            if start <= end:
-                predict_answer = ' '.join(context_words[start : end + 1])
-            else:
-                predict_answer = ''
-
-            f1 += f1_score(predict_answer, true_answer)
-            em += exact_match_score(predict_answer, true_answer)
-
-        f1 = 100 * f1 / sample
-        em = 100 * em / sample
-
-        if log:
-            logging.info("F1: {}, EM: {}, for {} samples".format(f1, em, sample))
-
-        return f1, em
-

@@ -41,7 +41,7 @@ tf.app.flags.DEFINE_string("embed_path", "", "Path to the trimmed GLoVe embeddin
 tf.app.flags.DEFINE_string("which_model", "Baseline", "Which model to run")
 tf.app.flags.DEFINE_string("question_maxlen", None, "Max length of question (default: 30")
 tf.app.flags.DEFINE_string("context_maxlen", None, "Max length of the context (default: 400)")
-tf.app.flags.DEFINE_string("log_batch_num", 100, "Number of batches to write logs on tensorboard.")
+tf.app.flags.DEFINE_string("log_batch_num", 100, "Number of batches to evaluate answer and write logs on tensorboard.")
 tf.app.flags.DEFINE_string("RE_TRAIN_EMBED", False, "Max length of the context (default: 400)")
 tf.app.flags.DEFINE_string("exdma_weight_decay", 0.999, "exponential decay for moving averages ")
 tf.app.flags.DEFINE_string("QA_ENCODER_SHARE", False, "Share the encoder weights")
