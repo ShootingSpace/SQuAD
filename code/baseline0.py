@@ -19,7 +19,7 @@ class Encoder(object):
         self.size = size
         self.vocab_dim = vocab_dim
 
-    def encode(self, inputs, masks, encoder_state_input):
+    def encode(self, inputs, masks, encoder_state_input = None):
         """
         In a generalized encode function, you pass in your inputs,
         masks, and an initial hidden state input into this function.
@@ -57,13 +57,13 @@ class Encoder(object):
 
         # sequence_length = tf.reduce_sum(tf.cast(mask, 'int32'), axis=1)
         # Outputs Tensor shaped: [batch_size, max_time, cell.output_size]
-        outputs, state = tf.nn.dynamic_rnn(cell, inputs, sequence_length,
+        outputs, final_state = tf.nn.dynamic_rnn(cell, inputs, sequence_length,
                                            initial_state = initial_state,
                                            dtype = tf.float32)
 
         logging.debug("output shape: {}".format(output.get_shape()))
 
-        return (output, state)
+        return (output, final_state)
 
 class Decoder(object):
     def __init__(self, output_size):
@@ -150,7 +150,7 @@ class QASystem(Model):
             train_op = tf.group(exdma_op)
         return train_op
 
-    def setup_system(self, context, question):
+    def setup_system(self):
         """
         Connect all parts of your system here:
         After your modularized implementation of encoder and decoder
@@ -160,15 +160,36 @@ class QASystem(Model):
         question: [None, max_question_length, d]
         :return:
         """
-        raise NotImplementedError("")
         d = context.get_shape().as_list()[-1] # self.config.embedding_size
         assert x.get_shape().ndims == 3
         assert q.get_shape().ndims == 3
 
         '''Step 1: encode context and question, respectively, with independent weights
-        e.g. u = encode_question(question)  # get U (d*J) as representation of q
-        e.g. h = encode_context(context, u_state)   # get H (2d*T) as representation of x
+        e.g. hq = encode_question(question)  # get U (d*J) as representation of q
+        e.g. hc = encode_context(context, u_state)   # get H (2d*T) as representation of x
         '''
+        with tf.variable_scope('q'):
+            hq, question_state = \
+                self.encoder.encode(self.question_embeddings,
+                                    self.question_mask_placeholder)
+            if self.config.QA_ENCODER_SHARE:
+                tf.get_variable_scope().reuse_variables()
+                hc, context_state =\
+                     self.encoder.encode(self.context_embeddings,
+                                         self.context_mask_placeholder,
+                                         encoder_state_input=u_state)
+
+        if not self.config.QA_ENCODER_SHARE:
+            with tf.variable_scope('c'):
+                hc, context_state =\
+                     self.encoder.encode(self.context_embeddings,
+                                         self.context_mask_placeholder,
+                                         encoder_state_input=u_state)
+
+        assert hc.get_shape().as_list() == [None, None, d_en], "Expected {}, got {}".format([None, JX, d_en], h.get_shape().as_list())
+        assert hq.get_shape().as_list() == [None, None, d_en], "Expected {}, got {}".format([None, JQ, d_en], u.get_shape().as_list())
+
+
 
 
 

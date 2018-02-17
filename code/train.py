@@ -38,7 +38,7 @@ tf.app.flags.DEFINE_string("which_model", "Baseline", "Which model to run")
 tf.app.flags.DEFINE_string("question_maxlen", None, "Max length of question (default: 30")
 tf.app.flags.DEFINE_string("context_maxlen", None, "Max length of the context (default: 400)")
 f.app.flags.DEFINE_string("exdma_weight_decay", 0.999, "exponential decay for moving averages ")
-
+tf.app.flags.DEFINE_string("QA_ENCODER_SHARE", False, "Share the encoder weights")
 
 FLAGS = tf.app.flags.FLAGS
 
