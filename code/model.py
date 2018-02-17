@@ -1,8 +1,10 @@
+import time
 import logging
-#from utils.general import batches, Progbar, get_random_samples, find_best_span, save_graphs
-#from utils.eval import evaluate
+
 import numpy as np
+from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
+from tensorflow.python.ops import variable_scope as vs
 from os.path import join as pjoin
 from abc import ABCMeta, abstractmethod
 from utils.util import variable_summaries, get_optimizer, softmax_mask_prepro, ConfusionMatrix, Progbar, minibatches, one_hot, minibatch, get_best_span
