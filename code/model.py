@@ -1,13 +1,19 @@
-import time
-import logging
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
+import time, datetime
+import logging
+from tqdm import tqdm
 import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
+from operator import mul
 from tensorflow.python.ops import variable_scope as vs
 from os.path import join as pjoin
 from abc import ABCMeta, abstractmethod
 from utils.util import variable_summaries, get_optimizer, softmax_mask_prepro, ConfusionMatrix, Progbar, minibatches, one_hot, minibatch, get_best_span
+from utils.evaluate import exact_match_score, f1_score
 
 logging.basicConfig(level=logging.INFO)
 
@@ -30,6 +36,8 @@ class Model(metaclass=ABCMeta):
     def setup_embeddings(self):
         pass
 
+    def __init__(self, config):
+        self.config = config    
 
     def train(self, session, dataset, train_dir, vocab, which_model):
         ''' Implement main training loop
@@ -70,7 +78,7 @@ class Model(metaclass=ABCMeta):
         training_set = dataset['training']
         validation_set = dataset['validation']
         f1_best = 0
-        if self.config.tensorboard and global_batch_num % self.config.log_batch_num == 0:
+        if self.config.tensorboard:
             # + datetime.datetime.now().strftime('%m-%d_%H-%M-%S')
             train_writer_dir = self.config.log_dir + '/train/'
 
@@ -156,6 +164,18 @@ class Model(metaclass=ABCMeta):
 
         return outputs
 
+    
+    def predict_on_batch(self, session, dataset):
+        batch_num = int(np.ceil(len(dataset) * 1.0 / self.config.batch_size))
+        # prog = Progbar(target=batch_num)
+        predicts = []
+        for i, batch in tqdm(enumerate(minibatches(dataset, self.config.batch_size, shuffle=False))):
+            pred = self.answer(session, batch)
+            # prog.update(i + 1)
+            predicts.extend(pred)
+        return predicts
+
+
     # def decode(self, session, test_batch):
     #
     #     question_batch, question_len_batch, context_batch, context_len_batch, answer_batch = test_batch
@@ -193,7 +213,7 @@ class Model(metaclass=ABCMeta):
         else:
             start_index = np.argmax(s, axis=1)
             end_index = np.argmax(e, axis=1)
-            spans = (start_index, end_index)
+            spans = zip(start_index, end_index)
 
         return spans
 
@@ -242,7 +262,7 @@ class Model(metaclass=ABCMeta):
         sampleIndices = np.random.choice(N, sample, replace = False)
         evaluate_set = [dataset[i] for i in sampleIndices]
         predicts = self.predict_on_batch(session, evaluate_set)
-
+        
         for example, (start, end) in zip(evaluate_set, predicts):
             q, _, c, _, (true_s, true_e) = example
             # print (start, end, true_s, true_e)
@@ -265,12 +285,3 @@ class Model(metaclass=ABCMeta):
 
         return f1, em
 
-    def predict_on_batch(self, session, dataset):
-        batch_num = int(np.ceil(len(dataset) * 1.0 / self.config.batch_size))
-        # prog = Progbar(target=batch_num)
-        predicts = []
-        for i, batch in tqdm(enumerate(minibatches(dataset, self.config.batch_size, shuffle=False))):
-            pred = self.answer(session, batch)
-            # prog.update(i + 1)
-            predicts.extend(pred)
-        return predicts

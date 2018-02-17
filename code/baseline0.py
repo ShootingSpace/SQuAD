@@ -280,7 +280,7 @@ class QASystem(Model):
         feed_dict[self.question_mask_placeholder] = question_mask
         feed_dict[self.context_placeholder] = context
         feed_dict[self.context_mask_placeholder] = context_mask
-        feed_dict[self.max_question_length_placeholder] = max_question_len
+        feed_dict[self.max_question_length_placeholder] = max_question_length
         feed_dict[self.max_context_length_placeholder] = max_context_length
 
         if answer_batch is not None:
