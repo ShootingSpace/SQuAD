@@ -112,7 +112,7 @@ def main(_):
 
     # encoder = Encoder(size=FLAGS.state_size, vocab_dim=FLAGS.embedding_size)
     # decoder = Decoder(output_size=FLAGS.output_size)
-
+    logging.info("-"* 10 + 'Running {} model'.format(FLAGS.which_model) + "-"* 10)
     if FLAGS.which_model == "Baseline":
         qa = baseline0.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model == "Baseline-LSTM":

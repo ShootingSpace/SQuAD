@@ -122,8 +122,10 @@ class Model(metaclass=ABCMeta):
                 self.train_writer.add_summary(summary, global_batch_num)
 
             if (i+1) % self.config.log_batch_num == 0:
-                self.evaluate_answer(session, training_set, vocab, sample=sample_size, log=True, 'train')
-                self.evaluate_answer(session, validation_set, vocab, sample=sample_size, log=True, 'validation')
+                self.evaluate_answer(session, training_set, vocab,
+                            sample=sample_size, log=True, indicaiton = 'train')
+                self.evaluate_answer(session, validation_set, vocab,
+                            sample=sample_size, log=True, indicaiton = 'validation')
 
             avg_loss += loss
 
