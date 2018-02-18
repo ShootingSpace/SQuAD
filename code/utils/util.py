@@ -13,18 +13,25 @@ from collections import defaultdict, Counter, OrderedDict
 import numpy as np
 import tensorflow as tf
 from numpy import array, zeros, allclose
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from os.path import join as pjoin
+import os
+import pickle
+
 
 def save_graphs(data, path):
 
     # First plot the losses
     losses = data["losses"]
-    
+
     fig = plt.figure()
     plt.plot([i for i in range(len(losses))], losses)
     plt.title("Batch sized used: {}".format(data["batch_size"]))
     plt.xlabel('batch number', fontsize=18)
     plt.ylabel('average loss', fontsize=16)
-    fig.savefig(pjoin(path, 'loss.png'))
+    fig.savefig(pjoin(path, 'loss.pdf'))
     plt.close(fig)
 
     batch_indices = data["batch_indices"]
@@ -37,7 +44,7 @@ def save_graphs(data, path):
     plt.title("Batch sized used: {}".format(data["batch_size"]))
     plt.xlabel('batch number', fontsize=18)
     plt.ylabel('F1 Score', fontsize = 16)
-    fig.savefig(pjoin(path, "f1_scores.png"))
+    fig.savefig(pjoin(path, "f1_scores.pdf"))
     plt.close(fig)
 
     EM_train, EM_val = data["EM_train"], data["EM_val"]
@@ -47,7 +54,7 @@ def save_graphs(data, path):
     plt.title("Batch sized used: {}".format(data["batch_size"]))
     plt.xlabel('batch number', fontsize=18)
     plt.ylabel('EM Score', fontsize = 16)
-    fig.savefig(pjoin(path, "EM_scores.png"))
+    fig.savefig(pjoin(path, "EM_scores.pdf"))
     plt.close(fig)
 
 def variable_summaries(var):

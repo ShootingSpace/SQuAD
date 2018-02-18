@@ -20,7 +20,6 @@ class Encoder(object):
     def __init__(self, size, config):
         self.size = size
         self.config = config
-        #self.vocab_dim = vocab_dim
 
     def encode(self, inputs, masks, encoder_state_input = None, reuse = False, dropout = 1.0):
         """
@@ -39,36 +38,40 @@ class Encoder(object):
                           word-level representation, or both.
                 state: The final state.
         """
-        logging.debug('-'*5 + 'encode' + '-'*5)
+        logging.debug('-'*5 + 'encode by BiLSTM' + '-'*5)
 
         # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
-        cell = tf.contrib.rnn.BasicRNNCell(self.size, reuse = reuse)
+        cell_fw = tf.contrib.rnn.BasicLSTMCell(self.size, reuse = reuse)
+        cell_fw = tf.contrib.rnn.DropoutWrapper(cell_fw, input_keep_prob = dropout)
 
-        cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob = dropout)
-
+        cell_bw = tf.contrib.rnn.BasicLSTMCell(self.size, reuse = reuse)
+        cell_bw = tf.contrib.rnn.DropoutWrapper(cell_bw, input_keep_prob = dropout)
 
         # defining initial state
         if encoder_state_input is not None:
-            initial_state = encoder_state_input
+            initial_state_fw, initial_state_bw = encoder_state_input
         else:
             #initial_state = cell.zero_state(self.config.batch_size, dtype = tf.float32)
-            initial_state = None
-
-        logging.debug('Inputs: %s' % (inputs.shape))
-        logging.debug('Masks: %s' % (masks.shape))
+            initial_state_fw = None
+            initial_state_bw = None
 
         sequence_length = tf.reduce_sum(tf.cast(masks, 'int32'), axis=1)
         sequence_length = tf.reshape(sequence_length, [-1,])
 
-        # sequence_length = tf.reduce_sum(tf.cast(mask, 'int32'), axis=1)
         # Outputs Tensor shaped: [batch_size, max_time, cell.output_size]
-        outputs, final_state = tf.nn.dynamic_rnn(cell, inputs, sequence_length,
-                                           initial_state = initial_state,
-                                           dtype = tf.float32)
+        (outputs_fw, outputs_bw), (final_state_fw, final_state_bw) = tf.nn.bidirectional_dynamic_rnn(
+                                            cell_fw = cell_fw,\
+                                            cell_bw = cell_bw,\
+                                            inputs = inputs,\
+                                            sequence_length = sequence_length,
+                                            initial_state_fw = initial_state_fw,\
+                                            initial_state_bw = initial_state_bw,
+                                            dtype = tf.float32)
 
-        logging.debug("output shape: {}".format(outputs.get_shape()))
-
-        return (outputs, final_state)
+        outputs = tf.concat([outputs_fw, outputs_bw], 2)
+        # final_state_fw and final_state_bw are the final states of the forwards/backwards LSTM
+        final_state = tf.concat([final_state_fw[1], final_state_bw[1]], 1)
+        return (outputs, final_state, (final_state_fw, final_state_bw))
 
 class Decoder(object):
     """
@@ -118,6 +121,8 @@ class QASystem(Model):
 
         self.result_saver = ResultSaver(self.config.save_dir)
 
+
+
         self.encoder = Encoder(config.encoder_state_size, self.config)
         self.decoder = Decoder(config.decoder_state_size)
 
@@ -135,7 +140,7 @@ class QASystem(Model):
         self.dropout_placeholder = tf.placeholder(tf.float32)
 
         # ==== assemble pieces ====
-        with tf.variable_scope("baseline", initializer=tf.uniform_unit_scaling_initializer(1.0)):
+        with tf.variable_scope(self.config.which_model, initializer=tf.uniform_unit_scaling_initializer(1.0)):
             self.question_embeddings, self.context_embeddings = self.setup_embeddings()
             self.preds = self.setup_system()
             self.loss = self.setup_loss(self.preds)
@@ -178,7 +183,7 @@ class QASystem(Model):
         '''
         logging.info(("-" * 10, "ENCODING ", "-" * 10))
         with tf.variable_scope('q'):
-            hq, question_state = \
+            hq, question_repr, question_state = \
                 self.encoder.encode(self.question_embeddings,
                                     self.question_mask_placeholder)
             if self.config.QA_ENCODER_SHARE:
@@ -191,15 +196,16 @@ class QASystem(Model):
 
         if not self.config.QA_ENCODER_SHARE:
             with tf.variable_scope('c'):
-                hc, context_state =\
+                hc, context_repr, context_state =\
                      self.encoder.encode(self.context_embeddings,
                                          self.context_mask_placeholder,
                                          encoder_state_input = question_state)
 
-        assert hc.get_shape().as_list() == [None, None, self.config.encoder_state_size], (
+        d_Bi = self.config.encoder_state_size*2
+        assert hc.get_shape().as_list() == [None, None, d_Bi], (
                 "Expected {}, got {}".format([None, self.max_context_length_placeholder,
                 self.config.encoder_state_size], hc.get_shape().as_list()))
-        assert hq.get_shape().as_list() == [None, None, self.config.encoder_state_size], (
+        assert hq.get_shape().as_list() == [None, None, d_Bi], (
                 "Expected {}, got {}".format([None, self.max_question_length_placeholder,
                 self.config.encoder_state_size], hq.get_shape().as_list()))
 

@@ -12,6 +12,7 @@ from tensorflow.python.ops import variable_scope as vs
 from utils.util import variable_summaries, get_optimizer, softmax_mask_prepro, ConfusionMatrix, Progbar, minibatches, one_hot, minibatch, get_best_span
 from utils.evaluate import exact_match_score, f1_score
 from model import Model
+from utils.result_saver import ResultSaver
 
 logging.basicConfig(level=logging.INFO)
 
@@ -61,6 +62,7 @@ class Encoder(object):
 
         # sequence_length = tf.reduce_sum(tf.cast(mask, 'int32'), axis=1)
         # Outputs Tensor shaped: [batch_size, max_time, cell.output_size]
+        # final_state: [batch_size, cell.state_size]
         outputs, final_state = tf.nn.dynamic_rnn(cell, inputs, sequence_length,
                                            initial_state = initial_state,
                                            dtype = tf.float32)
@@ -114,6 +116,10 @@ class QASystem(Model):
         #self.model = config.model
         self.embeddings = embeddings
         self.config = config
+
+        self.result_saver = ResultSaver(self.config.save_dir)
+
+
         self.encoder = Encoder(config.encoder_state_size, self.config)
         self.decoder = Decoder(config.decoder_state_size)
 
@@ -131,7 +137,7 @@ class QASystem(Model):
         self.dropout_placeholder = tf.placeholder(tf.float32)
 
         # ==== assemble pieces ====
-        with tf.variable_scope("baseline-LSTM", initializer=tf.uniform_unit_scaling_initializer(1.0)):
+        with tf.variable_scope(self.config.which_model, initializer=tf.uniform_unit_scaling_initializer(1.0)):
             self.question_embeddings, self.context_embeddings = self.setup_embeddings()
             self.preds = self.setup_system()
             self.loss = self.setup_loss(self.preds)

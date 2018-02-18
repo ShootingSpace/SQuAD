@@ -14,6 +14,7 @@ from utils.data_reader import read_data, load_glove_embeddings
 import logging
 import baseline0
 import baseline1
+import baseline2
 
 logging.basicConfig(level=logging.INFO)
 
@@ -42,14 +43,16 @@ tf.app.flags.DEFINE_string("embed_path", "", "Path to the trimmed GLoVe embeddin
 tf.app.flags.DEFINE_string("which_model", "Baseline", "Which model to run")
 tf.app.flags.DEFINE_string("question_maxlen", None, "Max length of question (default: 30")
 tf.app.flags.DEFINE_string("context_maxlen", None, "Max length of the context (default: 400)")
-tf.app.flags.DEFINE_string("log_batch_num", 100, "Number of batches to evaluate answer and write logs on tensorboard.")
+tf.app.flags.DEFINE_integer("log_batch_num", 100, "Number of batches to evaluate answer and write logs on tensorboard.")
 tf.app.flags.DEFINE_string("RE_TRAIN_EMBED", False, "Max length of the context (default: 400)")
-tf.app.flags.DEFINE_string("exdma_weight_decay", 0.999, "exponential decay for moving averages ")
+tf.app.flags.DEFINE_float("exdma_weight_decay", 0.999, "exponential decay for moving averages ")
 tf.app.flags.DEFINE_string("QA_ENCODER_SHARE", False, "Share the encoder weights")
 tf.app.flags.DEFINE_string("tensorboard", True, "Write tensorboard log or not.")
-tf.app.flags.DEFINE_string("evaluate_sample_size", 100, "number of samples for evaluation (default: 100)")
-tf.app.flags.DEFINE_string("model_selection_sample_size", 1000, "# samples for making model update decision (default: 1000)")
+tf.app.flags.DEFINE_integer("evaluate_sample_size", 100, "number of samples for evaluation (default: 100)")
+tf.app.flags.DEFINE_integer("model_selection_sample_size", 1000, "# samples for making model update decision (default: 1000)")
 tf.app.flags.DEFINE_integer("window_batch", 3, "window size / batch size")
+tf.app.flags.DEFINE_string("save_dir", "save", "directory to save graph(default: ./save).")
+
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -110,6 +113,19 @@ def main(_):
     vocab_path = FLAGS.vocab_path or pjoin(FLAGS.data_dir, "vocab.dat")
     vocab, rev_vocab = initialize_vocab(vocab_path)
 
+    FLAGS.save_dir = '{}/{}'.format(FLAGS.save_dir, FLAGS.which_model)
+
+    logging.info('save directory: {}'.format(FLAGS.save_dir))
+
+    '''check and make directory'''
+    if not os.path.exists(FLAGS.save_dir):
+        os.makedirs(FLAGS.save_dir, exist_ok = True)
+
+    if not os.path.exists(FLAGS.log_dir):
+        os.makedirs(FLAGS.log_dir)
+    file_handler = logging.FileHandler(pjoin(FLAGS.log_dir, "log.txt"))
+    logging.getLogger().addHandler(file_handler)
+
     # encoder = Encoder(size=FLAGS.state_size, vocab_dim=FLAGS.embedding_size)
     # decoder = Decoder(output_size=FLAGS.output_size)
     logging.info("-"* 10 + 'Running {} model'.format(FLAGS.which_model) + "-"* 10)
@@ -117,15 +133,14 @@ def main(_):
         qa = baseline0.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model == "Baseline-LSTM":
         qa = baseline1.QASystem(embeddings, FLAGS)
+    elif FLAGS.which_model == "Baseline-BiLSTM":
+        qa = baseline2.QASystem(embeddings, FLAGS)
     # elif FLAGS.which_model == "BiDAF":
     #         model = BiDAF(embeddings, FLAGS)
     # elif FLAGS.which_model == "LuongAttention":
     #     model = LuongAttention(embeddings, FLAGS)
 
-    if not os.path.exists(FLAGS.log_dir):
-        os.makedirs(FLAGS.log_dir)
-    file_handler = logging.FileHandler(pjoin(FLAGS.log_dir, "log.txt"))
-    logging.getLogger().addHandler(file_handler)
+
 
     print(vars(FLAGS))
     with open(os.path.join(FLAGS.log_dir, "flags.json"), 'w') as fout:
@@ -133,6 +148,7 @@ def main(_):
 
     with tf.Session() as sess:
         load_train_dir = get_normalized_train_dir(FLAGS.load_train_dir or FLAGS.train_dir)
+
         initialize_model(sess, qa, load_train_dir)
 
         save_train_dir = get_normalized_train_dir(FLAGS.train_dir)
