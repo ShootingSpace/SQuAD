@@ -12,7 +12,7 @@ from operator import mul
 from tensorflow.python.ops import variable_scope as vs
 from os.path import join as pjoin
 from abc import ABCMeta, abstractmethod
-from utils.util import variable_summaries, get_optimizer, softmax_mask_prepro, ConfusionMatrix, Progbar, minibatches, one_hot, minibatch, get_best_span
+from utils.util import save_graphs, variable_summaries, get_optimizer, softmax_mask_prepro, ConfusionMatrix, Progbar, minibatches, one_hot, minibatch, get_best_span
 from utils.evaluate import exact_match_score, f1_score
 
 logging.basicConfig(level=logging.INFO)
@@ -38,6 +38,7 @@ class Model(metaclass=ABCMeta):
 
     def __init__(self, config):
         self.config = config
+        self.result_saver = result_saver
 
     def train(self, session, dataset, train_dir, vocab, which_model):
         ''' Implement main training loop
@@ -89,12 +90,14 @@ class Model(metaclass=ABCMeta):
                                                 epoch + 1, self.config.epochs)
 
             score = self.run_epoch(session, epoch, training_set, vocab, validation_set,
-                                sample_size=self.config.evaluate_sample_size)
+                                sample_size = self.config.evaluate_sample_size)
             logging.info("-- validation --")
             self.validate(session, validation_set)
 
             f1, em = self.evaluate_answer(session, validation_set, vocab,
                         sample=self.config.model_selection_sample_size, log=True)
+            tf.summary.scalar('f1', f1)
+            tf.summary.scalar('em', em)
             # Saving the model
             if f1>f1_best:
                 f1_best = f1
@@ -128,6 +131,15 @@ class Model(metaclass=ABCMeta):
                             sample=sample_size, log=True, indicaiton = 'validation')
 
             avg_loss += loss
+            self.result_saver.save("f1_train", f1_train)
+            self.result_saver.save("EM_train", EM_train)
+            self.result_saver.save("f1_val", f1_val)
+            self.result_saver.save("EM_val", EM_val)
+            batches_trained = 1 if self.result_saver.is_empty("batch_indices") \
+                else self.result_saver.get("batch_indices")[-1] + min(i + 1, self.config.eval_num)
+            self.result_saver.save("batch_indices", batches_trained)
+            save_graphs(self.result_saver.data,
+                        path = self.config.train_dir + self.config.which_model)
 
         avg_loss /= batch_num
         logging.info("Average training loss: {}".format(avg_loss))

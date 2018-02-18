@@ -14,6 +14,42 @@ import numpy as np
 import tensorflow as tf
 from numpy import array, zeros, allclose
 
+def save_graphs(data, path):
+
+    # First plot the losses
+    losses = data["losses"]
+    
+    fig = plt.figure()
+    plt.plot([i for i in range(len(losses))], losses)
+    plt.title("Batch sized used: {}".format(data["batch_size"]))
+    plt.xlabel('batch number', fontsize=18)
+    plt.ylabel('average loss', fontsize=16)
+    fig.savefig(pjoin(path, 'loss.png'))
+    plt.close(fig)
+
+    batch_indices = data["batch_indices"]
+
+    # Now plot the f1, EM for the training and validation sets
+    f1_train, f1_val = data["f1_train"], data["f1_val"]
+
+    fig = plt.figure()
+    plt.plot(batch_indices, f1_train, 'b', batch_indices, f1_val, 'r')
+    plt.title("Batch sized used: {}".format(data["batch_size"]))
+    plt.xlabel('batch number', fontsize=18)
+    plt.ylabel('F1 Score', fontsize = 16)
+    fig.savefig(pjoin(path, "f1_scores.png"))
+    plt.close(fig)
+
+    EM_train, EM_val = data["EM_train"], data["EM_val"]
+
+    fig = plt.figure()
+    plt.plot(batch_indices, EM_train, 'b', batch_indices, EM_val, 'r')
+    plt.title("Batch sized used: {}".format(data["batch_size"]))
+    plt.xlabel('batch number', fontsize=18)
+    plt.ylabel('EM Score', fontsize = 16)
+    fig.savefig(pjoin(path, "EM_scores.png"))
+    plt.close(fig)
+
 def variable_summaries(var):
     """ Attach summaries to a Tensor (for TensorBoard visualization)."""
     with tf.name_scope('summaries'):
