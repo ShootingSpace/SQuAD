@@ -13,6 +13,7 @@ from utils.data_reader import read_data, load_glove_embeddings
 
 import logging
 import baseline0
+import baseline1
 
 logging.basicConfig(level=logging.INFO)
 
@@ -114,6 +115,8 @@ def main(_):
 
     if FLAGS.which_model == "Baseline":
         qa = baseline0.QASystem(embeddings, FLAGS)
+    elif FLAGS.which_model == "Baseline-LSTM":
+        qa = baseline1.QASystem(embeddings, FLAGS)
     # elif FLAGS.which_model == "BiDAF":
     #         model = BiDAF(embeddings, FLAGS)
     # elif FLAGS.which_model == "LuongAttention":

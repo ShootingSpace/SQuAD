@@ -122,10 +122,8 @@ class Model(metaclass=ABCMeta):
                 self.train_writer.add_summary(summary, global_batch_num)
 
             if (i+1) % self.config.log_batch_num == 0:
-                logging.info('eval - on training ')
-                self.evaluate_answer(session, training_set, vocab, sample=sample_size, log=True)
-                logging.info('eval - on dev ')
-                self.evaluate_answer(session, validation_set, vocab, sample=sample_size, log=True)
+                self.evaluate_answer(session, training_set, vocab, sample=sample_size, log=True, 'train')
+                self.evaluate_answer(session, validation_set, vocab, sample=sample_size, log=True, 'validation')
 
             avg_loss += loss
 
@@ -133,7 +131,7 @@ class Model(metaclass=ABCMeta):
         logging.info("Average training loss: {}".format(avg_loss))
         return avg_loss
 
-    def evaluate_answer(self, session, dataset, vocab, sample = 100, log = False):
+    def evaluate_answer(self, session, dataset, vocab, sample = 100, log = False, indicaiton = None):
         """
         Evaluate the model's performance using the harmonic mean of F1 and Exact Match (EM)
         with the set of true answer labels
@@ -175,7 +173,8 @@ class Model(metaclass=ABCMeta):
         em = 100 * em / sample
 
         if log:
-            logging.info("F1: {}, EM: {}, for {} samples".format(f1, em, sample))
+            logging.info("Evaluate {} set - F1: {}, EM: {}, for {} samples".format(
+                                    indicaiton, f1, em, sample))
 
         return f1, em
 
