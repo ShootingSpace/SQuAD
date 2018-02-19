@@ -43,12 +43,12 @@ tf.app.flags.DEFINE_string("embed_path", "", "Path to the trimmed GLoVe embeddin
 tf.app.flags.DEFINE_string("which_model", "Baseline", "Which model to run")
 tf.app.flags.DEFINE_string("question_maxlen", None, "Max length of question (default: 30")
 tf.app.flags.DEFINE_string("context_maxlen", None, "Max length of the context (default: 400)")
-tf.app.flags.DEFINE_integer("log_batch_num", 100, "Number of batches to evaluate answer and write logs on tensorboard.")
+tf.app.flags.DEFINE_integer("log_batch_num", 250, "Number of batches to evaluate answer and write logs on tensorboard.")
 tf.app.flags.DEFINE_string("RE_TRAIN_EMBED", False, "Max length of the context (default: 400)")
 tf.app.flags.DEFINE_float("exdma_weight_decay", 0.999, "exponential decay for moving averages ")
 tf.app.flags.DEFINE_string("QA_ENCODER_SHARE", False, "Share the encoder weights")
 tf.app.flags.DEFINE_string("tensorboard", True, "Write tensorboard log or not.")
-tf.app.flags.DEFINE_integer("evaluate_sample_size", 100, "number of samples for evaluation (default: 100)")
+tf.app.flags.DEFINE_integer("evaluate_sample_size", 400, "number of samples for evaluation (default: 100)")
 tf.app.flags.DEFINE_integer("model_selection_sample_size", 1000, "# samples for making model update decision (default: 1000)")
 tf.app.flags.DEFINE_integer("window_batch", 3, "window size / batch size")
 tf.app.flags.DEFINE_string("save_dir", "save", "directory to save graph(default: ./save).")
@@ -121,9 +121,9 @@ def main(_):
     if not os.path.exists(FLAGS.save_dir):
         os.makedirs(FLAGS.save_dir, exist_ok = True)
 
-    if not os.path.exists(FLAGS.log_dir):
-        os.makedirs(FLAGS.log_dir)
-    file_handler = logging.FileHandler(pjoin(FLAGS.log_dir, "log.txt"))
+    #if not os.path.exists(FLAGS.log_dir):
+    #    os.makedirs(FLAGS.log_dir)
+    file_handler = logging.FileHandler(pjoin(FLAGS.save_dir, "log.txt"))
     logging.getLogger().addHandler(file_handler)
 
     # encoder = Encoder(size=FLAGS.state_size, vocab_dim=FLAGS.embedding_size)
@@ -143,16 +143,16 @@ def main(_):
 
 
     print(vars(FLAGS))
-    with open(os.path.join(FLAGS.log_dir, "flags.json"), 'w') as fout:
+    with open(os.path.join(FLAGS.save_dir, "flags.json"), 'w') as fout:
         json.dump(FLAGS.__flags, fout)
 
     with tf.Session() as sess:
-        load_train_dir = get_normalized_train_dir(FLAGS.load_train_dir or FLAGS.train_dir)
+        #load_train_dir = get_normalized_train_dir(FLAGS.load_train_dir or FLAGS.train_dir)
 
-        initialize_model(sess, qa, load_train_dir)
+        initialize_model(sess, qa, FLAGS.save_dir)
 
-        save_train_dir = get_normalized_train_dir(FLAGS.train_dir)
-        qa.train(sess, dataset, save_train_dir, rev_vocab, FLAGS.which_model)
+        #save_train_dir = get_normalized_train_dir(FLAGS.train_dir)
+        qa.train(sess, dataset, FLAGS.save_dir, rev_vocab, FLAGS.which_model)
 
         #qa.evaluate_answer(sess, dataset, vocab, FLAGS.evaluate, log=True)
 
