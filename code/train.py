@@ -135,6 +135,8 @@ def main(_):
         qa = baseline1.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model == "Baseline-BiLSTM":
         qa = baseline2.QASystem(embeddings, FLAGS)
+    else:
+        qa = baseline2.QASystem(embeddings, FLAGS)
     # elif FLAGS.which_model == "BiDAF":
     #         model = BiDAF(embeddings, FLAGS)
     # elif FLAGS.which_model == "LuongAttention":

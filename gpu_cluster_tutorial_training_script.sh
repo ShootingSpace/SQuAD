@@ -30,4 +30,4 @@ export TMP=/disk/scratch/${STUDENT_ID}/
 
 source /home/${STUDENT_ID}/miniconda3/bin/activate mlp
 
-python code/train.py --which_model Baseline-BiLSTM #--learning_rate 0.001 --batch_size 32
+python code/train.py --which_model Baseline-BiLSTM01 #--learning_rate 0.001 --batch_size 32
