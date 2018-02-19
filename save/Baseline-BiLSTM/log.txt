@@ -1,0 +1,10 @@
+----------Running Baseline-BiLSTM model----------
+From E:\BD Cloud\mlp\cs224-ass4\code\baseline2.py:143: UniformUnitScaling.__init__ (from tensorflow.python.ops.init_ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Use tf.initializers.variance_scaling instead with distribution=uniform to get equivalent behavior.
+('----------', 'ENCODING ', '----------')
+('----------', ' DECODING ', '----------')
+Created model with fresh parameters.
+Num params: 322000
+Number of params: 322000 (retreival took 3.454809 secs)
+========== Epoch 1 out of 30 ==========
