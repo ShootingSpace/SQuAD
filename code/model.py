@@ -39,7 +39,8 @@ class Model(metaclass=ABCMeta):
 
     def __init__(self, config):
         self.config = config
-        self.result_saver = ResultSaver(self.config.save_dir)
+        self.result_saver = ResultSaver(self.config.output_dir)
+
 
     def train(self, session, dataset, train_dir, vocab, which_model):
         ''' Implement main training loop
@@ -82,9 +83,9 @@ class Model(metaclass=ABCMeta):
         f1_best = 0
         if self.config.tensorboard:
             # + datetime.datetime.now().strftime('%m-%d_%H-%M-%S')
-            train_writer_dir = self.config.log_dir + '/train/'
+            #train_writer_dir = self.config.log_dir + '/train/'
 
-            self.train_writer = tf.summary.FileWriter(train_writer_dir, session.graph)
+            self.train_writer = tf.summary.FileWriter(self.config.load_train_dir, session.graph)
 
         for epoch in range(self.config.epochs):
             logging.info("="* 10 + " Epoch %d out of %d " + "="* 10,
@@ -102,7 +103,7 @@ class Model(metaclass=ABCMeta):
             if f1>f1_best:
                 f1_best = f1
                 saver = tf.train.Saver()
-                saver.save(session, train_dir + which_model)
+                saver.save(session, train_dir)
                 logging.info('New best f1 in val set')
             logging.info('')
 
@@ -148,7 +149,7 @@ class Model(metaclass=ABCMeta):
 
                 self.result_saver.save("batch_indices", batches_trained)
                 save_graphs(self.result_saver.data,
-                            path = self.config.save_dir)
+                            path = self.config.output_dir)
 
             avg_loss += loss
 

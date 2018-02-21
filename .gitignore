@@ -3,7 +3,10 @@ data/
 .ipynb_checkpoints/
 __pycache__/
 .DS_Store
-log/
+
 *.pdf
 *.png
 *.ipynb
+*.p
+__init__.py
+

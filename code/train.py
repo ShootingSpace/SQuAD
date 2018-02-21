@@ -31,9 +31,9 @@ tf.app.flags.DEFINE_integer("decoder_state_size", 100, "Size of each decoder mod
 tf.app.flags.DEFINE_integer("output_size", 750, "The output size of your model.")
 tf.app.flags.DEFINE_integer("embedding_size", 100, "Size of the pretrained vocabulary.")
 tf.app.flags.DEFINE_string("data_dir", "data/squad", "SQuAD directory (default ./data/squad)")
-tf.app.flags.DEFINE_string("train_dir", "train", "Training directory to save the model parameters (default: ./train).")
-tf.app.flags.DEFINE_string("load_train_dir", "", "Training directory to load model parameters from to resume training (default: {train_dir}).")
-tf.app.flags.DEFINE_string("log_dir", "log", "Path to store log and flag files (default: ./log)")
+#tf.app.flags.DEFINE_string("train_dir", "train", "Training directory to save the model parameters (default: ./train).")
+tf.app.flags.DEFINE_string("load_train_dir", "train", "Training directory to load model parameters from to resume training (default: '/train').")
+#tf.app.flags.DEFINE_string("log_dir", "log", "Path to store log and flag files (default: ./log)")
 tf.app.flags.DEFINE_string("optimizer", "adam", "adam / sgd")
 tf.app.flags.DEFINE_integer("print_every", 1, "How many iterations to do per print.")
 tf.app.flags.DEFINE_integer("keep", 0, "How many checkpoints to keep, 0 indicates keep all.")
@@ -51,19 +51,20 @@ tf.app.flags.DEFINE_string("tensorboard", True, "Write tensorboard log or not.")
 tf.app.flags.DEFINE_integer("evaluate_sample_size", 400, "number of samples for evaluation (default: 100)")
 tf.app.flags.DEFINE_integer("model_selection_sample_size", 1000, "# samples for making model update decision (default: 1000)")
 tf.app.flags.DEFINE_integer("window_batch", 3, "window size / batch size")
-tf.app.flags.DEFINE_string("save_dir", "save", "directory to save graph(default: ./save).")
+tf.app.flags.DEFINE_string("output_dir", "output", "directory contains output graph(default: ./output).")
 
 
 FLAGS = tf.app.flags.FLAGS
 
 
 def initialize_model(session, model, train_dir):
-    ckpt = tf.train.get_checkpoint_state(train_dir)
-    v2_path = ckpt.model_checkpoint_path + ".index" if ckpt else ""
-    if ckpt and (tf.gfile.Exists(ckpt.model_checkpoint_path) or tf.gfile.Exists(v2_path)):
-        logging.info("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+    checkpoint = tf.train.get_checkpoint_state(train_dir)
+    v2_path = checkpoint.model_checkpoint_path + ".index" if checkpoint else ""
+
+    if checkpoint and (tf.gfile.Exists(checkpoint.model_checkpoint_path) or tf.gfile.Exists(v2_path)):
+        logging.info("Reading model parameters from %s" % checkpoint.model_checkpoint_path)
         saver = tf.train.Saver()
-        saver.restore(session, ckpt.model_checkpoint_path)
+        saver.restore(session, checkpoint.model_checkpoint_path)
     else:
         logging.info("Created model with fresh parameters.")
         session.run(tf.global_variables_initializer())
@@ -98,6 +99,12 @@ def get_normalized_train_dir(train_dir):
     os.symlink(os.path.abspath(train_dir), global_train_dir)
     return global_train_dir
 
+def make_dirs(*args):
+    '''check and make directory'''
+    for _dir in args:
+        if not os.path.exists(_dir):
+            os.makedirs(_dir)
+
 
 def main(_):
     # load datasets from FLAGS.data_dir
@@ -113,21 +120,26 @@ def main(_):
     vocab_path = FLAGS.vocab_path or pjoin(FLAGS.data_dir, "vocab.dat")
     vocab, rev_vocab = initialize_vocab(vocab_path)
 
-    FLAGS.save_dir = '{}/{}'.format(FLAGS.save_dir, FLAGS.which_model)
+    FLAGS.output_dir = '{}/{}'.format(FLAGS.output_dir, FLAGS.which_model)
 
-    logging.info('save directory: {}'.format(FLAGS.save_dir))
+    # '''check and make directory'''
+    # if not os.path.exists(FLAGS.output_dir):
+    #     os.makedirs(FLAGS.output_dir, exist_ok = True)
 
-    '''check and make directory'''
-    if not os.path.exists(FLAGS.save_dir):
-        os.makedirs(FLAGS.save_dir, exist_ok = True)
+    FLAGS.load_train_dir = '{}/{}'.format(FLAGS.load_train_dir, FLAGS.which_model)
+    #FLAGS.train_dir = '{}/{}/'.format(FLAGS.log_dir, 'train')
+    make_dirs(FLAGS.output_dir, FLAGS.load_train_dir) #, FLAGS.train_dir)
 
-    #if not os.path.exists(FLAGS.log_dir):
-    #    os.makedirs(FLAGS.log_dir)
-    file_handler = logging.FileHandler(pjoin(FLAGS.save_dir, "log.txt"))
+    logging.info('output directory: {}'.format(FLAGS.output_dir))
+    #logging.info('train directory: {}'.format(FLAGS.train_dir))
+    logging.info('load_train  directory: {}'.format(FLAGS.load_train_dir))
+
+    # if not os.path.exists(FLAGS.log_dir):
+    #     os.makedirs(FLAGS.log_dir)
+
+    file_handler = logging.FileHandler(pjoin(FLAGS.output_dir, "log.txt"))
     logging.getLogger().addHandler(file_handler)
 
-    # encoder = Encoder(size=FLAGS.state_size, vocab_dim=FLAGS.embedding_size)
-    # decoder = Decoder(output_size=FLAGS.output_size)
     logging.info("-"* 10 + 'Running {} model'.format(FLAGS.which_model) + "-"* 10)
     if FLAGS.which_model == "Baseline":
         qa = baseline0.QASystem(embeddings, FLAGS)
@@ -142,19 +154,18 @@ def main(_):
     # elif FLAGS.which_model == "LuongAttention":
     #     model = LuongAttention(embeddings, FLAGS)
 
+    #print(vars(FLAGS))
 
-
-    print(vars(FLAGS))
-    with open(os.path.join(FLAGS.save_dir, "flags.json"), 'w') as fout:
+    with open(os.path.join(FLAGS.output_dir, "flags.json"), 'w') as fout:
         json.dump(FLAGS.__flags, fout)
 
     with tf.Session() as sess:
         #load_train_dir = get_normalized_train_dir(FLAGS.load_train_dir or FLAGS.train_dir)
 
-        initialize_model(sess, qa, FLAGS.save_dir)
+        initialize_model(sess, qa, FLAGS.load_train_dir)
 
         #save_train_dir = get_normalized_train_dir(FLAGS.train_dir)
-        qa.train(sess, dataset, FLAGS.save_dir, rev_vocab, FLAGS.which_model)
+        qa.train(sess, dataset, FLAGS.load_train_dir, rev_vocab, FLAGS.which_model)
 
         #qa.evaluate_answer(sess, dataset, vocab, FLAGS.evaluate, log=True)
 

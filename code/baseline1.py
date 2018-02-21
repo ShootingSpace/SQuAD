@@ -117,7 +117,7 @@ class QASystem(Model):
         self.embeddings = embeddings
         self.config = config
 
-        self.result_saver = ResultSaver(self.config.save_dir)
+        self.result_saver = ResultSaver(self.config.output_dir)
 
 
         self.encoder = Encoder(config.encoder_state_size, self.config)

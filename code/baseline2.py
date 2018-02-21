@@ -119,7 +119,7 @@ class QASystem(Model):
         self.embeddings = embeddings
         self.config = config
 
-        self.result_saver = ResultSaver(self.config.save_dir)
+        self.result_saver = ResultSaver(self.config.output_dir)
 
 
 
@@ -181,7 +181,7 @@ class QASystem(Model):
         e.g. hq = encode_question(question)  # get U (d*J) as representation of q
         e.g. hc = encode_context(context, q_state)   # get H (d*T) as representation of x
         '''
-        logging.info(("-" * 10, "ENCODING ", "-" * 10))
+
         with tf.variable_scope('q'):
             hq, question_repr, question_state = \
                 self.encoder.encode(self.question_embeddings,
@@ -209,9 +209,7 @@ class QASystem(Model):
                 "Expected {}, got {}".format([None, self.max_question_length_placeholder,
                 self.config.encoder_state_size], hq.get_shape().as_list()))
 
-        '''Step 2: decoding
-        '''
-        logging.info(("-" * 10, " DECODING ", "-" * 10))
+        '''Step 2: decoding   '''
         with tf.variable_scope("decoding"):
             start, end = self.decoder.decode(hc, self.context_mask_placeholder,
                                              self.max_context_length_placeholder, self.dropout_placeholder)
