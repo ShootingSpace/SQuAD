@@ -121,10 +121,8 @@ class QASystem(Model):
 
         self.result_saver = ResultSaver(self.config.output_dir)
 
-
-
         self.encoder = Encoder(config.encoder_state_size, self.config)
-        self.decoder = Decoder(config.decoder_state_size)
+        self.decoder = Decoder(config.output_size)
 
         # ==== set up placeholder tokens ========
         self.context_placeholder = tf.placeholder(tf.int32, shape=(None, None))
