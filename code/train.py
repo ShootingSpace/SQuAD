@@ -61,15 +61,18 @@ FLAGS = tf.app.flags.FLAGS
 def initialize_model(session, model, train_dir):
     checkpoint = tf.train.get_checkpoint_state(train_dir)
     v2_path = checkpoint.model_checkpoint_path + ".index" if checkpoint else ""
-
+    print("checkpoint.model_checkpoint_path ", checkpoint.model_checkpoint_path)
     if checkpoint and (tf.gfile.Exists(checkpoint.model_checkpoint_path) or tf.gfile.Exists(v2_path)):
         logging.info("Reading model parameters from %s" % checkpoint.model_checkpoint_path)
         saver = tf.train.Saver()
         saver.restore(session, checkpoint.model_checkpoint_path)
+        save_path = saver.save(session, checkpoint.model_checkpoint_path)
+        print("Model saved in path: %s" % save_path)
     else:
         logging.info("Created model with fresh parameters.")
         session.run(tf.global_variables_initializer())
         logging.info('Num params: %d' % sum(v.get_shape().num_elements() for v in tf.trainable_variables()))
+
     return model
 
 
@@ -131,17 +134,19 @@ def main(_):
     #FLAGS.train_dir = '{}/{}/'.format(FLAGS.log_dir, 'train')
     make_dirs(FLAGS.output_dir, FLAGS.load_train_dir) #, FLAGS.train_dir)
 
+    file_handler = logging.FileHandler(pjoin(FLAGS.output_dir, "log.txt"))
+    logging.getLogger().addHandler(file_handler)
+
     logging.info('output directory: {}'.format(FLAGS.output_dir))
     #logging.info('train directory: {}'.format(FLAGS.train_dir))
-    logging.info('load_train  directory: {}'.format(FLAGS.load_train_dir))
+    logging.info('load_train directory: {}'.format(FLAGS.load_train_dir))
 
     # if not os.path.exists(FLAGS.log_dir):
     #     os.makedirs(FLAGS.log_dir)
 
-    file_handler = logging.FileHandler(pjoin(FLAGS.output_dir, "log.txt"))
-    logging.getLogger().addHandler(file_handler)
 
-    logging.info("-"* 10 + 'Running {} model'.format(FLAGS.which_model) + "-"* 10)
+
+    logging.info("="* 10 + 'Running {} model'.format(FLAGS.which_model) + "="* 20)
     if FLAGS.which_model == "Baseline":
         qa = baseline0.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model == "Baseline-LSTM":
@@ -151,7 +156,7 @@ def main(_):
     elif FLAGS.which_model == "LSTM_decode":
         qa = lstm_decode.QASystem(embeddings, FLAGS)
     else:
-        logging.infor("No such specified model, use default baseline model")
+        logging.info("No such specified model, use default baseline model")
         qa = baseline0.QASystem(embeddings, FLAGS)
     # elif FLAGS.which_model == "BiDAF":
     #         model = BiDAF(embeddings, FLAGS)
