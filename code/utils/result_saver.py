@@ -15,7 +15,8 @@ class ResultSaver(object):
             "losses": [],
             "batch_size": None
         }
-        if os.path.exists(path) and os.path.isfile(path):
+        if os.path.exists(self.path) and os.path.isfile(self.path):
+            print("Load exists output data from {}".format(self.path))
             self.load_data()
 
     def load_data(self):

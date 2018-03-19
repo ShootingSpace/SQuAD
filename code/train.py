@@ -60,8 +60,11 @@ FLAGS = tf.app.flags.FLAGS
 
 def initialize_model(session, model, train_dir):
     checkpoint = tf.train.get_checkpoint_state(train_dir)
+    if checkpoint:
+        print("Find checkpoint from {}".format(train_dir))
+    else: print("No checkpoint found in {}".format(train_dir))
     v2_path = checkpoint.model_checkpoint_path + ".index" if checkpoint else ""
-    print("checkpoint.model_checkpoint_path ", checkpoint.model_checkpoint_path)
+    # print("checkpoint.model_checkpoint_path ", checkpoint.model_checkpoint_path)
     if checkpoint and (tf.gfile.Exists(checkpoint.model_checkpoint_path) or tf.gfile.Exists(v2_path)):
         logging.info("Reading model parameters from %s" % checkpoint.model_checkpoint_path)
         saver = tf.train.Saver()
@@ -130,7 +133,7 @@ def main(_):
     # if not os.path.exists(FLAGS.output_dir):
     #     os.makedirs(FLAGS.output_dir, exist_ok = True)
 
-    FLAGS.load_train_dir = '{}/{}'.format(FLAGS.load_train_dir, FLAGS.which_model)
+    FLAGS.load_train_dir = '{}/{}/'.format(FLAGS.load_train_dir, FLAGS.which_model)
     #FLAGS.train_dir = '{}/{}/'.format(FLAGS.log_dir, 'train')
     make_dirs(FLAGS.output_dir, FLAGS.load_train_dir) #, FLAGS.train_dir)
 

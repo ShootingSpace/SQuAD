@@ -84,7 +84,7 @@ class Model(metaclass=ABCMeta):
         if self.config.tensorboard:
             # + datetime.datetime.now().strftime('%m-%d_%H-%M-%S')
             #train_writer_dir = self.config.log_dir + '/train/'
-            print('tensorboard log_dir {}'.format(self.config.load_train_dir))
+            print('tensorboard dir {}'.format(self.config.load_train_dir))
             self.train_writer = tf.summary.FileWriter(self.config.load_train_dir, session.graph)
 
         for epoch in range(self.config.epochs):
@@ -103,7 +103,9 @@ class Model(metaclass=ABCMeta):
             if f1>f1_best:
                 f1_best = f1
                 saver = tf.train.Saver()
-                saver.save(session, train_dir+self.config.which_model)
+                # The last one is the prefix of checkpoint files
+                # saver.save(session, train_dir+self.config.which_model)
+                saver.save(session, pjoin(train_dir, self.config.which_model)) 
                 logging.info('New best f1 in val set')
             logging.info('')
 
