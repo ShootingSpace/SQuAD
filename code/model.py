@@ -41,6 +41,13 @@ class Model(metaclass=ABCMeta):
         self.config = config
         self.result_saver = ResultSaver(self.config.output_dir)
 
+        # ==== assemble pieces ====
+        # with tf.variable_scope(self.config.which_model, initializer=tf.uniform_unit_scaling_initializer(1.0)):
+        #     self.preds = self.setup_system()
+        #     self.loss = self.setup_loss(self.preds)
+        #     self.f1 = tf.Variable(0., tf.float64)
+        #     self.em = tf.Variable(0., tf.float64)
+
 
     def train(self, session, dataset, train_dir, vocab, which_model):
         ''' Implement main training loop
@@ -99,13 +106,14 @@ class Model(metaclass=ABCMeta):
             f1, em = self.evaluate_answer(session, validation_set, vocab,
                         sample=self.config.model_selection_sample_size, log=True)
 
+
             # Saving the model
             if f1>f1_best:
                 f1_best = f1
                 saver = tf.train.Saver()
                 # The last one is the prefix of checkpoint files
                 # saver.save(session, train_dir+self.config.which_model)
-                saver.save(session, pjoin(train_dir, self.config.which_model)) 
+                saver.save(session, pjoin(train_dir, self.config.which_model))
                 logging.info('New best f1 in val set')
             logging.info('')
 
@@ -136,10 +144,11 @@ class Model(metaclass=ABCMeta):
                             sample=sample_size, log=True, indicaiton = 'train')
                 f1_val, EM_val = self.evaluate_answer(session, validation_set, vocab,
                             sample=sample_size, log=True, indicaiton = 'validation')
-                tf.summary.scalar('f1_train', f1_train)
-                tf.summary.scalar('EM_train', EM_train)
-                tf.summary.scalar('f1_val', f1_val)
-                tf.summary.scalar('EM_val', EM_val)
+
+                # run the assign operation
+                session.run([tf.assign(self.f1_train, f1_train), tf.assign(self.EM_train, EM_train),
+                                      tf.assign(self.f1_val, f1_val), tf.assign(self.EM_val, EM_val)])
+
                 self.result_saver.save("f1_train", f1_train)
                 self.result_saver.save("EM_train", EM_train)
                 self.result_saver.save("f1_val", f1_val)
@@ -247,21 +256,6 @@ class Model(metaclass=ABCMeta):
             # prog.update(i + 1)
             predicts.extend(pred)
         return predicts
-
-
-    # def decode(self, session, test_batch):
-    #
-    #     question_batch, question_len_batch, context_batch, context_len_batch, answer_batch = test_batch
-    #     input_feed = self.create_feed_dict(question_batch, question_len_batch,
-    #                                         context_batch, context_len_batch,
-    #                                         answer_batch = None,
-    #                                         is_train = False)
-    #
-    #     output_feed = [self.preds[0], self.preds[1]]
-    #
-    #     start, end = session.run(output_feed, input_feed)
-    #
-    #     return start, end
 
     def answer(self, session, test_batch, use_best_span = False):
         """
