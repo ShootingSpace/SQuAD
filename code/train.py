@@ -17,6 +17,7 @@ import baseline1
 import baseline2
 import BiLSTM_encode_decode
 import BiGRU_encode_decode
+import Attention
 
 logging.basicConfig(level=logging.INFO)
 
@@ -129,13 +130,13 @@ def main(_):
     vocab_path = FLAGS.vocab_path or pjoin(FLAGS.data_dir, "vocab.dat")
     vocab, rev_vocab = initialize_vocab(vocab_path)
 
-    FLAGS.output_dir = '{}/{}'.format(FLAGS.output_dir, FLAGS.which_model+FLAGS.model_suffix)
+    FLAGS.output_dir = '{}/{}_{}'.format(FLAGS.output_dir, FLAGS.which_model, FLAGS.model_suffix)
 
     # '''check and make directory'''
     # if not os.path.exists(FLAGS.output_dir):
     #     os.makedirs(FLAGS.output_dir, exist_ok = True)
 
-    FLAGS.load_train_dir = '{}/{}/'.format(FLAGS.load_train_dir, FLAGS.which_model+FLAGS.model_suffix)
+    FLAGS.load_train_dir = '{}/{}_{}/'.format(FLAGS.load_train_dir, FLAGS.which_model, FLAGS.model_suffix)
     #FLAGS.train_dir = '{}/{}/'.format(FLAGS.log_dir, 'train')
     make_dirs(FLAGS.output_dir, FLAGS.load_train_dir) #, FLAGS.train_dir)
 
@@ -162,6 +163,8 @@ def main(_):
         qa = BiLSTM_encode_decode.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model in ["BiGRU"]:
         qa = BiGRU_encode_decode.QASystem(embeddings, FLAGS)
+    elif FLAGS.which_model in ["Attention"]:
+        qa = Attention.QASystem(embeddings, FLAGS)
     else:
         logging.info("No such specified model, use default baseline model")
         qa = baseline0.QASystem(embeddings, FLAGS)
