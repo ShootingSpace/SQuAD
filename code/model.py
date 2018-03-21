@@ -87,7 +87,7 @@ class Model(metaclass=ABCMeta):
             self.train_writer = tf.summary.FileWriter(train_dir, session.graph)
 
         for epoch in range(self.config.epochs):
-            logging.info("="* 10 + " Epoch %d out of %d " + "="* 10,
+            logging.info("="* 20 + " Epoch %d out of %d " + "="* 20,
                                                 epoch + 1, self.config.epochs)
 
             score = self.run_epoch(session, epoch, training_set, vocab, validation_set,
@@ -111,6 +111,7 @@ class Model(metaclass=ABCMeta):
 
     def run_epoch(self, session, epoch_num, training_set, vocab, validation_set,
                     sample_size = 400):
+        tic = time.time()
         set_num = len(training_set)
         batch_size = self.config.batch_size
         batch_num = int(np.ceil(set_num * 1.0 / batch_size))
@@ -157,7 +158,9 @@ class Model(metaclass=ABCMeta):
             avg_loss += loss
 
         avg_loss /= batch_num
-        logging.info("Average training loss: {}".format(avg_loss))
+        toc = time.time()
+        logging.info("Took {} secs for one epoch training, average training loss: {}".format(
+                                                        toc - tic, avg_loss)) 
         return avg_loss
 
     def evaluate_answer(self, session, dataset, vocab, sample = 100, log = False, indicaiton = None):
