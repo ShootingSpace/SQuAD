@@ -42,6 +42,7 @@ tf.app.flags.DEFINE_string("vocab_path", "data/squad/vocab.dat", "Path to vocab 
 tf.app.flags.DEFINE_string("embed_path", "", "Path to the trimmed GLoVe embedding (default: ./data/squad/glove.trimmed.{embedding_size}.npz)")
 
 tf.app.flags.DEFINE_string("which_model", "Baseline", "Which model to run")
+tf.app.flags.DEFINE_string("model_suffix", "", "Suffix to distinguish the same models with different parameters")
 tf.app.flags.DEFINE_string("question_maxlen", None, "Max length of question (default: 30")
 tf.app.flags.DEFINE_string("context_maxlen", None, "Max length of the context (default: 400)")
 tf.app.flags.DEFINE_integer("log_batch_num", 250, "Number of batches to evaluate answer and write logs on tensorboard.")
@@ -127,13 +128,13 @@ def main(_):
     vocab_path = FLAGS.vocab_path or pjoin(FLAGS.data_dir, "vocab.dat")
     vocab, rev_vocab = initialize_vocab(vocab_path)
 
-    FLAGS.output_dir = '{}/{}'.format(FLAGS.output_dir, FLAGS.which_model)
+    FLAGS.output_dir = '{}/{}'.format(FLAGS.output_dir, FLAGS.which_model+FLAGS.model_suffix)
 
     # '''check and make directory'''
     # if not os.path.exists(FLAGS.output_dir):
     #     os.makedirs(FLAGS.output_dir, exist_ok = True)
 
-    FLAGS.load_train_dir = '{}/{}/'.format(FLAGS.load_train_dir, FLAGS.which_model)
+    FLAGS.load_train_dir = '{}/{}/'.format(FLAGS.load_train_dir, FLAGS.which_model+FLAGS.model_suffix)
     #FLAGS.train_dir = '{}/{}/'.format(FLAGS.log_dir, 'train')
     make_dirs(FLAGS.output_dir, FLAGS.load_train_dir) #, FLAGS.train_dir)
 
@@ -177,7 +178,8 @@ def main(_):
         initialize_model(sess, qa, FLAGS.load_train_dir)
 
         #save_train_dir = get_normalized_train_dir(FLAGS.train_dir)
-        qa.train(sess, dataset, FLAGS.load_train_dir, rev_vocab, FLAGS.which_model)
+        qa.train(sess, dataset, FLAGS.load_train_dir, rev_vocab,
+                                           FLAGS.which_model+FLAGS.model_suffix)
 
         #qa.evaluate_answer(sess, dataset, vocab, FLAGS.evaluate, log=True)
 

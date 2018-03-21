@@ -343,19 +343,19 @@ def test_write_conll():
         ("Peter Blackburn".split(), "PER PER".split())
         ]
     output = """EU  ORG
-rejects O
-German  MISC
-call    O
-to  O
-boycott O
-British MISC
-lamb    O
-.   O
+            rejects O
+            German  MISC
+            call    O
+            to  O
+            boycott O
+            British MISC
+            lamb    O
+            .   O
 
-Peter   PER
-Blackburn   PER
+            Peter   PER
+            Blackburn   PER
 
-"""
+            """
     output_ = io.StringIO()
     write_conll(output_, input)
     output_ = output_.getvalue()

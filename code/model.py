@@ -41,15 +41,7 @@ class Model(metaclass=ABCMeta):
         self.config = config
         self.result_saver = ResultSaver(self.config.output_dir)
 
-        # ==== assemble pieces ====
-        # with tf.variable_scope(self.config.which_model, initializer=tf.uniform_unit_scaling_initializer(1.0)):
-        #     self.preds = self.setup_system()
-        #     self.loss = self.setup_loss(self.preds)
-        #     self.f1 = tf.Variable(0., tf.float64)
-        #     self.em = tf.Variable(0., tf.float64)
-
-
-    def train(self, session, dataset, train_dir, vocab, which_model):
+    def train(self, session, dataset, train_dir, vocab, checkpoint_prefix):
         ''' Implement main training loop
         TIPS:
         Implement learning rate annealing (look into tf.train.exponential_decay)
@@ -91,8 +83,8 @@ class Model(metaclass=ABCMeta):
         if self.config.tensorboard:
             # + datetime.datetime.now().strftime('%m-%d_%H-%M-%S')
             #train_writer_dir = self.config.log_dir + '/train/'
-            print('tensorboard dir {}'.format(self.config.load_train_dir))
-            self.train_writer = tf.summary.FileWriter(self.config.load_train_dir, session.graph)
+            print('tensorboard dir {}'.format(train_dir))
+            self.train_writer = tf.summary.FileWriter(train_dir, session.graph)
 
         for epoch in range(self.config.epochs):
             logging.info("="* 10 + " Epoch %d out of %d " + "="* 10,
@@ -113,7 +105,7 @@ class Model(metaclass=ABCMeta):
                 saver = tf.train.Saver()
                 # The last one is the prefix of checkpoint files
                 # saver.save(session, train_dir+self.config.which_model)
-                saver.save(session, pjoin(train_dir, self.config.which_model))
+                saver.save(session, pjoin(train_dir, checkpoint_prefix))
                 logging.info('New best f1 in val set')
             logging.info('')
 

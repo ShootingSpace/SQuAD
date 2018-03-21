@@ -8,7 +8,7 @@ logger.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 class Config(object):
-    def __init__(self, data_dir, small_dir=None, small_val = None, sorted_data = False):
+    def __init__(self, data_dir, small_dir=None, small_val=None, sorted_data=True):
             # self.val_answer_file = pjoin(data_dir, 'val.answer')
         if sorted_data:
             self.train_answer_span_file = pjoin(data_dir, 'train.span_sorted')
@@ -44,7 +44,7 @@ def load_glove_embeddings(embed_path):
 def add_paddings(sentence, max_length, n_features=1):
     mask = [True] * len(sentence)
     pad_len = max_length - len(sentence)
-    
+
     if pad_len > 0:
         padded_sentence = sentence + [0] * pad_len
         mask += [False] * pad_len
