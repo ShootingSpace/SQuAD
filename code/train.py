@@ -15,7 +15,8 @@ import logging
 import baseline0
 import baseline1
 import baseline2
-import lstm_decode
+import BiLSTM_encode_decode
+import BiGRU_encode_decode
 
 logging.basicConfig(level=logging.INFO)
 
@@ -157,8 +158,10 @@ def main(_):
         qa = baseline1.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model == "Baseline-BiLSTM":
         qa = baseline2.QASystem(embeddings, FLAGS)
-    elif FLAGS.which_model == "LSTM_decode":
-        qa = lstm_decode.QASystem(embeddings, FLAGS)
+    elif FLAGS.which_model in ["LSTM_decode", "BiLSTM_encode_decode"]:
+        qa = BiLSTM_encode_decode.QASystem(embeddings, FLAGS)
+    elif FLAGS.which_model in ["BiGRU"]:
+        qa = BiGRU_encode_decode.QASystem(embeddings, FLAGS)
     else:
         logging.info("No such specified model, use default baseline model")
         qa = baseline0.QASystem(embeddings, FLAGS)
