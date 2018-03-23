@@ -38,9 +38,9 @@ class Encoder(object):
                           word-level representation, or both.
                 state: The final state.
         """
-        logging.debug('-'*5 + 'encode by BiGRU' + '-'*5)
-        return BiLSTM_layer(inputs=inputs, masks=masks, dropout = dropout,
+        return BiGRU_layer(inputs=inputs, masks=masks, dropout = dropout,
                                         state_size=self.state_size, encoder_state_input=None)
+
 
 class Decoder(object):
     """
@@ -103,7 +103,6 @@ class QASystem(Model):
 
         self.encoder = Encoder(config.encoder_state_size, self.config)
         self.decoder = Decoder(output_size=config.output_size, state_size = config.decoder_state_size)
-        self.attention = Attention()
 
         # ==== set up placeholder tokens ========
         self.context_placeholder = tf.placeholder(tf.int32, shape=(None, None))
@@ -169,7 +168,7 @@ class QASystem(Model):
         e.g. hc = encode_context(context, q_state)   # get H (d*T) as representation of x
         '''
 
-        with tf.variable_scope('question'):
+        with tf.variable_scope('q'):
             hq, question_repr, question_state = \
                 self.encoder.encode(self.question_embeddings,
                                     self.question_mask_placeholder)
@@ -182,7 +181,7 @@ class QASystem(Model):
                                          reuse = True)
 
         if not self.config.QA_ENCODER_SHARE:
-            with tf.variable_scope('context'):
+            with tf.variable_scope('c'):
                 hc, context_repr, context_state =\
                      self.encoder.encode(self.context_embeddings,
                                          self.context_mask_placeholder,
@@ -196,32 +195,9 @@ class QASystem(Model):
                 "Expected {}, got {}".format([None, self.max_question_length_placeholder,
                 self.config.encoder_state_size], hq.get_shape().as_list()))
 
-        '''Step 2: combine context hidden state(hc) and question hidden state(hq) with attention
-             measured similarity = hc.T * hq
-
-             Context-to-query (C2Q) attention signifies which query words are most relevant to each P context word.
-                attention_c2q = softmax(similarity)
-                hq_hat = sum(attention_c2q*hq)
-
-             Query-to-context (Q2C) attention signifies which context words have the closest similarity
-                to one of the query words and are hence critical for answering the query.
-                attention_q2c = softmax(similarity.T)
-                hc_hat = sum(attention_q2c*hc)
-
-             combine with β activation: β function can be an arbitrary trainable neural network
-             g = β(hc, hq, hc_hat, hq_hat)
-        '''
-        # concat[h, u_a, h*u_a, h*h_a]
-        g = self.attention.forwards(hc, hq, self.context_mask_placeholder, self.question_mask_placeholder,
-                                    max_context_length_placeholder = self.max_context_length_placeholder,
-                                    max_question_length_placeholder = self.max_question_length_placeholder)
-        d_com = d_Bi*4
-
-
-
-        '''Step 3: decoding   '''
+        '''Step 2: decoding   '''
         with tf.variable_scope("decoding"):
-            start, end = self.decoder.decode(g, self.context_mask_placeholder,
+            start, end = self.decoder.decode(hc, self.context_mask_placeholder,
                                              self.max_context_length_placeholder, self.dropout_placeholder)
         return start, end
 

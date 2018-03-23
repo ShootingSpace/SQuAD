@@ -19,6 +19,7 @@ import BiLSTM_encode_decode
 import BiGRU_encode_decode
 import BiGRU_encode
 import BiLSTM_encode_BiGRU_decode
+import BiGRU_encode_BiLSTM_decode
 import Attention
 
 logging.basicConfig(level=logging.INFO)
@@ -167,13 +168,15 @@ def main(_):
         qa = BiGRU_encode.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model in ["BiLSTM_encode_BiGRU_decode"]:
         qa = BiLSTM_encode_BiGRU_decode.QASystem(embeddings, FLAGS)
+    elif FLAGS.which_model in ["BiGRU_encode_BiLSTM_decode"]:
+        qa = BiGRU_encode_BiLSTM_decode.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model in ["BiGRU_encode_BiGRU_decode"]:
         qa = BiGRU_encode_decode.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model in ["Attention"]:
         qa = Attention.QASystem(embeddings, FLAGS)
     else:
         logging.info("No such specified model, use default baseline model")
-        qa = baseline0.QASystem(embeddings, FLAGS)
+        raise ValueError('Could not find {} model'.format(FLAGS.which_model))
     # elif FLAGS.which_model == "BiDAF":
     #         model = BiDAF(embeddings, FLAGS)
     # elif FLAGS.which_model == "LuongAttention":
