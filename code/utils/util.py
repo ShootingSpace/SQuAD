@@ -90,10 +90,10 @@ class Attention(object):
 def BiGRU_layer(inputs, masks, state_size, encoder_state_input, dropout=1.0, reuse=False):
     ''' Wrapped BiGRU_layer for reuse'''
     # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
-    cell_fw = tf.contrib.rnn.GRUCell(state_size, reuse = reuse)
+    cell_fw = tf.contrib.rnn.GRUCell(state_size)
     cell_fw = tf.contrib.rnn.DropoutWrapper(cell_fw, input_keep_prob = dropout)
 
-    cell_bw = tf.contrib.rnn.GRUCell(state_size, reuse = reuse)
+    cell_bw = tf.contrib.rnn.GRUCell(state_size)
     cell_bw = tf.contrib.rnn.DropoutWrapper(cell_bw, input_keep_prob = dropout)
 
     # defining initial state

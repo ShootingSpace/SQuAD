@@ -17,6 +17,8 @@ import baseline1
 import baseline2
 import BiLSTM_encode_decode
 import BiGRU_encode_decode
+import BiGRU_encode
+import BiLSTM_encode_BiGRU_decode
 import Attention
 
 logging.basicConfig(level=logging.INFO)
@@ -159,9 +161,13 @@ def main(_):
         qa = baseline1.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model == "Baseline-BiLSTM":
         qa = baseline2.QASystem(embeddings, FLAGS)
-    elif FLAGS.which_model in ["LSTM_decode", "BiLSTM_decode"]:
+    elif FLAGS.which_model in ["LSTM_decode", "BiLSTM_decode", "BiLSTM_encode_BiLSTM_decode"]:
         qa = BiLSTM_encode_decode.QASystem(embeddings, FLAGS)
-    elif FLAGS.which_model in ["BiGRU"]:
+    elif FLAGS.which_model in ["BiGRU_encode"]:
+        qa = BiGRU_encode.QASystem(embeddings, FLAGS)
+    elif FLAGS.which_model in ["BiLSTM_encode_BiGRU_decode"]:
+        qa = BiLSTM_encode_BiGRU_decode.QASystem(embeddings, FLAGS)
+    elif FLAGS.which_model in ["BiGRU_encode_BiGRU_decode"]:
         qa = BiGRU_encode_decode.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model in ["Attention"]:
         qa = Attention.QASystem(embeddings, FLAGS)

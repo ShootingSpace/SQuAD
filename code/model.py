@@ -110,7 +110,7 @@ class Model(metaclass=ABCMeta):
             logging.info('')
 
     def run_epoch(self, session, epoch_num, training_set, vocab, validation_set,
-                    sample_size = 400):
+                    sample_size = 400, log=True):
         tic = time.time()
         set_num = len(training_set)
         batch_size = self.config.batch_size
@@ -137,7 +137,9 @@ class Model(metaclass=ABCMeta):
                             sample=sample_size, log=True, indicaiton = 'train')
                 f1_val, EM_val = self.evaluate_answer(session, validation_set, vocab,
                             sample=sample_size, log=True, indicaiton = 'validation')
-
+                if log:
+                    logging.info("Evaluate for {} samples. Training set F1: {}, EM {}. Valid set F1: {}, EM {}".format(
+                                    sample_size, f1_train, EM_train, f1_val, EM_val))
                 # run the assign operation
                 session.run([tf.assign(self.f1_train, f1_train), tf.assign(self.EM_train, EM_train),
                                       tf.assign(self.f1_val, f1_val), tf.assign(self.EM_val, EM_val)])
@@ -160,7 +162,7 @@ class Model(metaclass=ABCMeta):
         avg_loss /= batch_num
         toc = time.time()
         logging.info("Took {} secs for one epoch training, average training loss: {}".format(
-                                                        toc - tic, avg_loss)) 
+                                                        toc - tic, avg_loss))
         return avg_loss
 
     def evaluate_answer(self, session, dataset, vocab, sample = 100, log = False, indicaiton = None):
@@ -204,9 +206,9 @@ class Model(metaclass=ABCMeta):
         f1 = 100 * f1 / sample
         em = 100 * em / sample
 
-        if log:
-            logging.info("Evaluate {} set - F1: {}, EM: {}, for {} samples".format(
-                                    indicaiton, f1, em, sample))
+        # if log:
+        #     logging.info("Evaluate {} set - F1: {}, EM: {}, for {} samples".format(
+        #                             indicaiton, f1, em, sample))
 
         return f1, em
 
