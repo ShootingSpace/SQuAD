@@ -99,7 +99,7 @@ class Decoder(object):
                           decided by how you choose to implement the encoder
     :return: (start, end)
     """
-    def __init__(self, output_size, state_size):
+    def __init__(self, output_size, state_size=None):
         self.output_size = output_size
         self.state_size = state_size
 
