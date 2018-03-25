@@ -9,104 +9,11 @@ import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 from tensorflow.python.ops import variable_scope as vs
-from utils.util import variable_summaries, get_optimizer, softmax_mask_prepro, ConfusionMatrix, Progbar, minibatches, one_hot, minibatch, get_best_span
 from utils.evaluate import exact_match_score, f1_score
-from model import Model
+from model import Model, Encoder, Decoder
 from utils.result_saver import ResultSaver
 
 logging.basicConfig(level=logging.INFO)
-
-class Encoder(object):
-    def __init__(self, size, config):
-        self.size = size
-        self.config = config
-        #self.vocab_dim = vocab_dim
-
-    def encode(self, inputs, masks, encoder_state_input = None, reuse = False, dropout = 1.0):
-        """
-        In a generalized encode function, you pass in your inputs,
-        masks, and an initial hidden state input into this function.
-
-        :param inputs: Symbolic representations of your input
-        :param masks: this is to make sure tf.nn.dynamic_rnn doesn't iterate
-                      through masked steps
-        :param encoder_state_input: (Optional) pass this as initial hidden state
-                                    to tf.nn.dynamic_rnn to build conditional representations
-        :return:
-                outputs: The RNN output Tensor
-                          an encoded representation of your input.
-                          It can be context-level representation,
-                          word-level representation, or both.
-                state: The final state.
-        """
-        logging.debug('-'*5 + 'encode' + '-'*5)
-
-        # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
-        cell = tf.contrib.rnn.BasicRNNCell(self.size, reuse = reuse)
-
-        cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob = dropout)
-
-
-        # defining initial state
-        if encoder_state_input is not None:
-            initial_state = encoder_state_input
-        else:
-            #initial_state = cell.zero_state(self.config.batch_size, dtype = tf.float32)
-            initial_state = None
-
-        logging.debug('Inputs: %s' % (inputs.shape))
-        logging.debug('Masks: %s' % (masks.shape))
-
-        sequence_length = tf.reduce_sum(tf.cast(masks, 'int32'), axis=1)
-        sequence_length = tf.reshape(sequence_length, [-1,])
-
-        # sequence_length = tf.reduce_sum(tf.cast(mask, 'int32'), axis=1)
-        # Outputs Tensor shaped: [batch_size, max_time, cell.output_size]
-        outputs, final_state = tf.nn.dynamic_rnn(cell, inputs, sequence_length,
-                                           initial_state = initial_state,
-                                           dtype = tf.float32)
-
-        logging.debug("output shape: {}".format(outputs.get_shape()))
-
-        return (outputs, final_state)
-
-class Decoder(object):
-    """
-    takes in a knowledge representation
-    and output a probability estimation over
-    all paragraph tokens on which token should be
-    the start of the answer span, and which should be
-    the end of the answer span.
-
-    :param knowledge_rep: it is a representation of the paragraph and question,
-                          decided by how you choose to implement the encoder
-    :return: (start, end)
-    """
-    def __init__(self, output_size):
-        self.output_size = output_size
-
-    def decode(self, knowledge_rep, mask, max_input_length, dropout = 1.0):
-        with tf.variable_scope("start"):
-            start = self.get_logit(knowledge_rep, max_input_length)
-            start = softmax_mask_prepro(start, mask)
-
-        with tf.variable_scope("end"):
-            end = self.get_logit(knowledge_rep, max_input_length)
-            end = softmax_mask_prepro(end, mask)
-
-        return (start, end)
-
-    def get_logit(self, inputs, max_inputs_length):
-        ''' Get the logit (-inf, inf). '''
-        d = inputs.get_shape().as_list()[-1]
-        assert inputs.get_shape().ndims == 3
-        # -1 is used to infer the shape
-        inputs = tf.reshape(inputs, shape = [-1, d])
-        W = tf.get_variable('W', initializer=tf.contrib.layers.xavier_initializer(), shape=(d, 1), dtype=tf.float32)
-        pred = tf.matmul(inputs, W)
-        pred = tf.reshape(pred, shape = [-1, max_inputs_length])
-        tf.summary.histogram('logit', pred)
-        return pred
 
 class QASystem(Model):
     def __init__(self, embeddings, config):
