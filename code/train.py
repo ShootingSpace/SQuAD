@@ -50,7 +50,7 @@ tf.app.flags.DEFINE_string("which_model", "Baseline", "Which model to run")
 tf.app.flags.DEFINE_string("model_suffix", "", "Suffix to distinguish the same models with different parameters")
 tf.app.flags.DEFINE_string("question_maxlen", None, "Max length of question (default: 30")
 tf.app.flags.DEFINE_string("context_maxlen", None, "Max length of the context (default: 400)")
-tf.app.flags.DEFINE_integer("log_batch_num", 250, "Number of batches to evaluate answer and write logs on tensorboard.")
+tf.app.flags.DEFINE_integer("log_batch_num", 0, "Number of batches to evaluate answer and write logs on tensorboard.")
 tf.app.flags.DEFINE_string("RE_TRAIN_EMBED", False, "Max length of the context (default: 400)")
 tf.app.flags.DEFINE_float("exdma_weight_decay", 0.999, "exponential decay for moving averages ")
 tf.app.flags.DEFINE_string("QA_ENCODER_SHARE", False, "Share the encoder weights")
@@ -126,6 +126,10 @@ def main(_):
         FLAGS.context_maxlen = dataset['context_maxlen']
     if FLAGS.question_maxlen is None:
         FLAGS.question_maxlen = dataset['question_maxlen']
+
+    # change log_batch_num according to batch size
+    if not FLAGS.log_batch_num:
+        FLAGS.log_batch_num = int(8000 / FLAGS.batch_size)
 
     embed_path = FLAGS.embed_path or pjoin("data", "squad", "glove.trimmed.{}.npz".format(FLAGS.embedding_size))
     embeddings = load_glove_embeddings(embed_path)
