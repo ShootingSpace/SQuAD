@@ -119,7 +119,7 @@ class Decoder(object):
         '''Decode with BiLSTM '''
         with tf.variable_scope('Modeling'):
             outputs, final_state, m_state = \
-                 BiLSTM_layer(inputs=knowledge_rep, masks=mask, dropout = dropout,
+                 BiLSTM_layer(inputs=knowledge_rep, masks=mask, dropout = 1-dropout,
                   state_size=self.state_size, encoder_state_input=None)
 
         with tf.variable_scope("start"):
@@ -136,7 +136,7 @@ class Decoder(object):
         '''Decode with BiGRU'''
         with tf.variable_scope('Modeling'):
             outputs, final_state, m_state = \
-                 BiGRU_layer(inputs=knowledge_rep, masks=mask, dropout = dropout,
+                 BiGRU_layer(inputs=knowledge_rep, masks=mask, dropout = 1-dropout,
                   state_size=self.state_size, encoder_state_input=None)
 
         with tf.variable_scope("start"):
