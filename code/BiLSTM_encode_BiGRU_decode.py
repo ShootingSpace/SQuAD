@@ -11,7 +11,7 @@ import tensorflow as tf
 from tensorflow.python.ops import variable_scope as vs
 from utils.util import *
 from utils.evaluate import exact_match_score, f1_score
-from model import Model
+from model import Model, Encoder, Decoder
 from utils.result_saver import ResultSaver
 
 logging.basicConfig(level=logging.INFO)

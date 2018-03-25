@@ -9,9 +9,9 @@ import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 from tensorflow.python.ops import variable_scope as vs
-from utils.util import variable_summaries, get_optimizer, softmax_mask_prepro, ConfusionMatrix, Progbar, minibatches, one_hot, minibatch, get_best_span
+from utils.util import *
 from utils.evaluate import exact_match_score, f1_score
-from model import Model
+from model import Model, Encoder, Decoder
 from utils.result_saver import ResultSaver
 
 logging.basicConfig(level=logging.INFO)
