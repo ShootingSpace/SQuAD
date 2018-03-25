@@ -41,7 +41,6 @@ class Encoder(object):
         self.config = config
 
     def encode(self, inputs, masks, encoder_state_input = None, dropout = 0.0):
-        logging.debug('-'*5 + 'encode' + '-'*5)
         # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
         cell = tf.contrib.rnn.BasicRNNCell(self.state_size)
         cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob = 1-dropout)
@@ -62,7 +61,6 @@ class Encoder(object):
         return (outputs, final_state)
 
     def LSTM_encode(self, inputs, masks, encoder_state_input = None, dropout = 0.0):
-        logging.debug('-'*5 + 'encode' + '-'*5)
         # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
         cell = tf.contrib.rnn.BasicLSTMCell(self.state_size)
         cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob = 1-dropout)
@@ -83,8 +81,11 @@ class Encoder(object):
         return (outputs, final_state)
 
     def BiLSTM_encode(self, inputs, masks, encoder_state_input = None, reuse = False, dropout = 0.0):
-
         return BiLSTM_layer(inputs=inputs, masks=masks, dropout = dropout,
+                                        state_size=self.state_size, encoder_state_input=None)
+
+    def BiGRU_encode(self, inputs, masks, encoder_state_input = None, reuse = False, dropout = 0.0):
+        return BiGRU_layer(inputs=inputs, masks=masks, dropout = dropout,
                                         state_size=self.state_size, encoder_state_input=None)
 
 class Decoder(object):
@@ -119,6 +120,23 @@ class Decoder(object):
         with tf.variable_scope('Modeling'):
             outputs, final_state, m_state = \
                  BiLSTM_layer(inputs=knowledge_rep, masks=mask, dropout = dropout,
+                  state_size=self.state_size, encoder_state_input=None)
+
+        with tf.variable_scope("start"):
+            start = self.get_logit(outputs, max_input_length)
+            start = softmax_mask_prepro(start, mask)
+
+        with tf.variable_scope("end"):
+            end = self.get_logit(outputs, max_input_length)
+            end = softmax_mask_prepro(end, mask)
+
+        return (start, end)
+
+    def BiGRU_decode(self, knowledge_rep, mask, max_input_length, dropout = 0.0):
+        '''Decode with BiGRU'''
+        with tf.variable_scope('Modeling'):
+            outputs, final_state, m_state = \
+                 BiGRU_layer(inputs=knowledge_rep, masks=mask, dropout = dropout,
                   state_size=self.state_size, encoder_state_input=None)
 
         with tf.variable_scope("start"):
