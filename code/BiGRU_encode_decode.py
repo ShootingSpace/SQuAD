@@ -98,20 +98,20 @@ class QASystem(Model):
         with tf.variable_scope('question'):
             hq, question_repr, question_state = \
                 self.encoder.BiGRU_encode(self.question_embeddings, self.question_mask_placeholder,
-                                    dropout = self.dropout_placeholder)
+                                    keep_prob = self.dropout_placeholder)
             if self.config.QA_ENCODER_SHARE:
                 tf.get_variable_scope().reuse_variables()
                 hc, context_state =\
                      self.encoder.BiGRU_encode(self.context_embeddings, self.context_mask_placeholder,
                                          encoder_state_input = question_state,
-                                         dropout = self.dropout_placeholder)
+                                         keep_prob = self.dropout_placeholder)
 
         if not self.config.QA_ENCODER_SHARE:
             with tf.variable_scope('context'):
                 hc, context_repr, context_state =\
                      self.encoder.BiGRU_encode(self.context_embeddings, self.context_mask_placeholder,
                                          encoder_state_input = question_state,
-                                         dropout=self.dropout_placeholder)
+                                         keep_prob=self.dropout_placeholder)
 
         d_Bi = self.config.encoder_state_size*2
         assert hc.get_shape().as_list() == [None, None, d_Bi], (

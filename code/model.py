@@ -40,10 +40,10 @@ class Encoder(object):
         self.state_size = state_size
         self.config = config
 
-    def encode(self, inputs, masks, encoder_state_input = None, dropout = 0.0):
+    def encode(self, inputs, masks, encoder_state_input = None, keep_prob = 1.0):
         # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
         cell = tf.contrib.rnn.BasicRNNCell(self.state_size)
-        cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob = 1-dropout)
+        cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob = keep_prob)
         # defining initial state
         if encoder_state_input is not None:
             initial_state = encoder_state_input
@@ -60,10 +60,10 @@ class Encoder(object):
 
         return (outputs, final_state)
 
-    def LSTM_encode(self, inputs, masks, encoder_state_input = None, dropout = 0.0):
+    def LSTM_encode(self, inputs, masks, encoder_state_input = None, keep_prob = 1.0):
         # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
         cell = tf.contrib.rnn.BasicLSTMCell(self.state_size)
-        cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob = 1-dropout)
+        cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob = keep_prob)
         # defining initial state
         if encoder_state_input is not None:
             initial_state = encoder_state_input
@@ -80,12 +80,12 @@ class Encoder(object):
 
         return (outputs, final_state)
 
-    def BiLSTM_encode(self, inputs, masks, encoder_state_input = None, reuse = False, dropout = 0.0):
-        return BiLSTM_layer(inputs=inputs, masks=masks, dropout = dropout,
+    def BiLSTM_encode(self, inputs, masks, encoder_state_input = None, reuse = False, keep_prob = 1.0):
+        return BiLSTM_layer(inputs=inputs, masks=masks, keep_prob = keep_prob,
                                         state_size=self.state_size, encoder_state_input=None)
 
-    def BiGRU_encode(self, inputs, masks, encoder_state_input = None, reuse = False, dropout = 0.0):
-        return BiGRU_layer(inputs=inputs, masks=masks, dropout = dropout,
+    def BiGRU_encode(self, inputs, masks, encoder_state_input = None, reuse = False, keep_prob = 1.0):
+        return BiGRU_layer(inputs=inputs, masks=masks, keep_prob = keep_prob,
                                         state_size=self.state_size, encoder_state_input=None)
 
 class Decoder(object):
@@ -104,7 +104,7 @@ class Decoder(object):
         self.output_size = output_size
         self.state_size = state_size
 
-    def decode(self, knowledge_rep, mask, max_input_length, dropout = 0.0):
+    def decode(self, knowledge_rep, mask, max_input_length, keep_prob = 1.0):
         with tf.variable_scope("start"):
             start = self.get_logit(knowledge_rep, max_input_length)
             start = softmax_mask_prepro(start, mask)
@@ -115,11 +115,11 @@ class Decoder(object):
 
         return (start, end)
 
-    def BiLSTM_decode(self, knowledge_rep, mask, max_input_length, dropout = 0.0):
+    def BiLSTM_decode(self, knowledge_rep, mask, max_input_length, keep_prob = 1.0):
         '''Decode with BiLSTM '''
         with tf.variable_scope('Modeling'):
             outputs, final_state, m_state = \
-                 BiLSTM_layer(inputs=knowledge_rep, masks=mask, dropout = 1-dropout,
+                 BiLSTM_layer(inputs=knowledge_rep, masks=mask, keep_prob = keep_prob,
                   state_size=self.state_size, encoder_state_input=None)
 
         with tf.variable_scope("start"):
@@ -132,11 +132,11 @@ class Decoder(object):
 
         return (start, end)
 
-    def BiGRU_decode(self, knowledge_rep, mask, max_input_length, dropout = 0.0):
+    def BiGRU_decode(self, knowledge_rep, mask, max_input_length, keep_prob = 1.0):
         '''Decode with BiGRU'''
         with tf.variable_scope('Modeling'):
             outputs, final_state, m_state = \
-                 BiGRU_layer(inputs=knowledge_rep, masks=mask, dropout = 1-dropout,
+                 BiGRU_layer(inputs=knowledge_rep, masks=mask, keep_prob = keep_prob,
                   state_size=self.state_size, encoder_state_input=None)
 
         with tf.variable_scope("start"):
@@ -558,8 +558,8 @@ class Model(metaclass=ABCMeta):
             feed_dict[self.answer_start_placeholder] = start
             feed_dict[self.answer_end_placeholder] = end
         if is_train:
-            feed_dict[self.dropout_placeholder] = self.config.dropout
+            feed_dict[self.dropout_placeholder] = self.config.keep_prob
         else:
-            feed_dict[self.dropout_placeholder] = 0.0
+            feed_dict[self.dropout_placeholder] = 1.0
 
         return feed_dict

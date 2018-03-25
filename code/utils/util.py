@@ -20,14 +20,14 @@ from os.path import join as pjoin
 import os
 import pickle
 
-def BiGRU_layer(inputs, masks, state_size, encoder_state_input, dropout=0.0, reuse=False):
+def BiGRU_layer(inputs, masks, state_size, encoder_state_input, keep_prob=1.0, reuse=False):
     ''' Wrapped BiGRU_layer for reuse'''
     # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
     cell_fw = tf.contrib.rnn.GRUCell(state_size)
-    cell_fw = tf.contrib.rnn.DropoutWrapper(cell_fw, input_keep_prob = 1-dropout)
+    cell_fw = tf.contrib.rnn.DropoutWrapper(cell_fw, input_keep_prob = keep_prob)
 
     cell_bw = tf.contrib.rnn.GRUCell(state_size)
-    cell_bw = tf.contrib.rnn.DropoutWrapper(cell_bw, input_keep_prob = 1-dropout)
+    cell_bw = tf.contrib.rnn.DropoutWrapper(cell_bw, input_keep_prob = keep_prob)
 
     # defining initial state
     if encoder_state_input is not None:
@@ -55,14 +55,14 @@ def BiGRU_layer(inputs, masks, state_size, encoder_state_input, dropout=0.0, reu
     final_state = tf.concat([final_state_fw, final_state_bw], 1)
     return (outputs, final_state, (final_state_fw, final_state_bw))
 
-def BiLSTM_layer(inputs, masks, state_size, encoder_state_input, dropout=0.0):
+def BiLSTM_layer(inputs, masks, state_size, encoder_state_input, keep_prob=1.0):
     ''' Wrapped BiLSTM_layer for reuse'''
     # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
     cell_fw = tf.contrib.rnn.BasicLSTMCell(state_size)
-    cell_fw = tf.contrib.rnn.DropoutWrapper(cell_fw, input_keep_prob = 1-dropout)
+    cell_fw = tf.contrib.rnn.DropoutWrapper(cell_fw, input_keep_prob = keep_prob)
 
     cell_bw = tf.contrib.rnn.BasicLSTMCell(state_size)
-    cell_bw = tf.contrib.rnn.DropoutWrapper(cell_bw, input_keep_prob = 1-dropout)
+    cell_bw = tf.contrib.rnn.DropoutWrapper(cell_bw, input_keep_prob = keep_prob)
 
     # defining initial state
     if encoder_state_input is not None:
