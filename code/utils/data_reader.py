@@ -65,9 +65,10 @@ def preprocess_dataset(dataset, question_maxlen, context_maxlen):
 def strip(x):
     return list(map(int, x.decode().strip().split(" ")))
 
-def read_data(data_dir, small_dir = None, small_val = None, question_maxlen = None,
+def read_data(data_dir, sorted_data, small_dir = None, small_val = None, question_maxlen = None,
                 context_maxlen = None, debug_train_samples = None, debug_val_samples = None):
-    config = Config(data_dir, small_dir=small_dir, small_val = small_val)
+    config = Config(data_dir, small_dir=small_dir, small_val = small_val,
+                    sorted_data=sorted_data)
 
     train = []
     max_q_len = 0

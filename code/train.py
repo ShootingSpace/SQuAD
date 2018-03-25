@@ -55,6 +55,7 @@ tf.app.flags.DEFINE_string("RE_TRAIN_EMBED", False, "Max length of the context (
 tf.app.flags.DEFINE_float("exdma_weight_decay", 0.999, "exponential decay for moving averages ")
 tf.app.flags.DEFINE_string("QA_ENCODER_SHARE", False, "Share the encoder weights")
 tf.app.flags.DEFINE_string("tensorboard", True, "Write tensorboard log or not.")
+tf.app.flags.DEFINE_string("sorted_data", True, "Use sorted data or not.")
 tf.app.flags.DEFINE_integer("evaluate_sample_size", 400, "number of samples for evaluation (default: 100)")
 tf.app.flags.DEFINE_integer("model_selection_sample_size", 1000, "# samples for making model update decision (default: 1000)")
 tf.app.flags.DEFINE_integer("window_batch", 3, "window size / batch size")
@@ -121,7 +122,7 @@ def make_dirs(*args):
 
 def main(_):
     # load datasets from FLAGS.data_dir
-    dataset = read_data(FLAGS.data_dir)
+    dataset = read_data(FLAGS.data_dir, FLAGS.sorted_data)
     if FLAGS.context_maxlen is None:
         FLAGS.context_maxlen = dataset['context_maxlen']
     if FLAGS.question_maxlen is None:
