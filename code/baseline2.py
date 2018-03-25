@@ -47,6 +47,14 @@ class QASystem(Model):
             self.question_embeddings, self.context_embeddings = self.setup_embeddings()
             self.preds = self.setup_system()
             self.loss = self.setup_loss(self.preds)
+            self.f1_train = tf.Variable(0., tf.float64)
+            self.EM_train = tf.Variable(0., tf.float64)
+            self.f1_val = tf.Variable(0., tf.float64)
+            self.EM_val = tf.Variable(0., tf.float64)
+            tf.summary.scalar('f1_train', self.f1_train)
+            tf.summary.scalar('EM_train', self.EM_train)
+            tf.summary.scalar('f1_val', self.f1_val)
+            tf.summary.scalar('EM_val', self.EM_val)
 
         # ==== set up training/updating procedure ====
         ''' With gradient clipping'''
