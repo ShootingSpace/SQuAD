@@ -560,6 +560,6 @@ class Model(metaclass=ABCMeta):
         if is_train:
             feed_dict[self.dropout_placeholder] = self.config.dropout
         else:
-            feed_dict[self.dropout_placeholder] = 1.0
+            feed_dict[self.dropout_placeholder] = 0.0
 
         return feed_dict
