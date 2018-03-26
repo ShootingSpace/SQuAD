@@ -26,7 +26,7 @@ class QASystem(Model):
 
         self.result_saver = ResultSaver(self.config.output_dir)
 
-        self.encoder = Encoder(config.encoder_state_size, self.config)
+        self.encoder = Encoder(config.encoder_state_size)
         self.decoder = Decoder(config.output_size)
 
         # ==== set up placeholder tokens ========
@@ -93,24 +93,23 @@ class QASystem(Model):
         e.g. hc = encode_context(context, q_state)   # get H (d*T) as representation of x
         '''
 
-        with tf.variable_scope('q'):
-            hq, question_repr, question_state = \
-                self.encoder.BiLSTM_encode(self.question_embeddings,
-                                    self.question_mask_placeholder)
+        with tf.variable_scope('question'):
+            hq, question_state_fw, question_state_bw = \
+                self.encoder.BiLSTM_encode(self.question_embeddings, self.question_mask_placeholder,
+                                    keep_prob = self.dropout_placeholder)
             if self.config.QA_ENCODER_SHARE:
                 #tf.get_variable_scope().reuse_variables()
-                hc, context_state =\
-                     self.encoder.BiLSTM_encode(self.context_embeddings,
-                                         self.context_mask_placeholder,
-                                         encoder_state_input = question_state,
-                                         reuse = True)
+                hc, context_state_fw, context_state_bw =\
+                     self.encoder.BiLSTM_encode(self.context_embeddings, self.context_mask_placeholder,
+                             initial_state_fw = question_state_fw, initial_state_bw = question_state_bw,
+                             reuse = True, keep_prob = self.dropout_placeholder)
 
         if not self.config.QA_ENCODER_SHARE:
-            with tf.variable_scope('c'):
-                hc, context_repr, context_state =\
-                     self.encoder.BiLSTM_encode(self.context_embeddings,
-                                         self.context_mask_placeholder,
-                                         encoder_state_input = question_state)
+            with tf.variable_scope('context'):
+                hc, context_state_fw, context_state_bw =\
+                     self.encoder.BiLSTM_encode(self.context_embeddings, self.context_mask_placeholder,
+                             initial_state_fw = question_state_fw, initial_state_bw = question_state_bw,
+                                         keep_prob=self.dropout_placeholder)
 
         d_Bi = self.config.encoder_state_size*2
         assert hc.get_shape().as_list() == [None, None, d_Bi], (
@@ -134,10 +133,10 @@ class QASystem(Model):
             s, e = preds # [None, max length]
             assert s.get_shape().ndims == 2
             assert e.get_shape().ndims == 2
-            loss1 = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=s, labels=self.answer_start_placeholder),)
-            loss2 = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=e, labels=self.answer_end_placeholder),)
-            # loss1 = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=s, labels=self.answer_start_placeholder),)
-            # loss2 = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=e, labels=self.answer_end_placeholder),)
+            # loss1 = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=s, labels=self.answer_start_placeholder),)
+            # loss2 = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=e, labels=self.answer_end_placeholder),)
+            loss1 = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=s, labels=self.answer_start_placeholder),)
+            loss2 = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=e, labels=self.answer_end_placeholder),)
         loss = loss1 + loss2
         tf.summary.scalar('loss', loss)
 

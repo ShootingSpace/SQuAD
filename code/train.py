@@ -168,7 +168,7 @@ def main(_):
         qa = baseline1.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model == "Baseline-BiLSTM":
         qa = baseline2.QASystem(embeddings, FLAGS)
-    elif FLAGS.which_model in ["LSTM_decode", "BiLSTM_decode", "BiLSTM_encode_BiLSTM_decode"]:
+    elif FLAGS.which_model in ["BiLSTM_encode_decode", "BiLSTM_encode_BiLSTM_decode"]:
         qa = BiLSTM_encode_decode.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model in ["BiGRU_encode"]:
         qa = BiGRU_encode.QASystem(embeddings, FLAGS)

@@ -36,9 +36,8 @@ class Encoder(object):
                       word-level representation, or both.
             state: The final state.
     """
-    def __init__(self, state_size, config):
+    def __init__(self, state_size):
         self.state_size = state_size
-        self.config = config
 
     def encode(self, inputs, masks, encoder_state_input = None, keep_prob = 1.0):
         # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
@@ -48,7 +47,6 @@ class Encoder(object):
         if encoder_state_input is not None:
             initial_state = encoder_state_input
         else:
-            #initial_state = cell.zero_state(self.config.batch_size, dtype = tf.float32)
             initial_state = None
 
         sequence_length = tf.reduce_sum(tf.cast(masks, 'int32'), axis=1)
@@ -80,13 +78,49 @@ class Encoder(object):
 
         return (outputs, final_state)
 
-    def BiLSTM_encode(self, inputs, masks, encoder_state_input = None, reuse = False, keep_prob = 1.0):
-        return BiLSTM_layer(inputs=inputs, masks=masks, keep_prob = keep_prob,
-                                        state_size=self.state_size, encoder_state_input=None)
+    def BiLSTM_encode(self, inputs, masks, initial_state_fw=None, initial_state_bw=None, reuse=False, keep_prob = 1.0):
+        return BiLSTM_layer(inputs, masks, self.state_size, initial_state_fw,
+                                                                 initial_state_bw, reuse, keep_prob)
 
-    def BiGRU_encode(self, inputs, masks, encoder_state_input = None, reuse = False, keep_prob = 1.0):
-        return BiGRU_layer(inputs=inputs, masks=masks, keep_prob = keep_prob,
-                                        state_size=self.state_size, encoder_state_input=None)
+    def BiGRU_encode(self, inputs, masks, initial_state_fw=None, initial_state_bw=None, reuse=False, keep_prob = 1.0):
+        return BiGRU_layer(inputs, masks, self.state_size, initial_state_fw,
+                                                                 initial_state_bw, reuse, keep_prob)
+
+    # def BiLSTM_encode(self, inputs, masks, encoder_state_input = None, reuse = False, keep_prob = 1.0):
+    #
+    #     logging.debug('-'*5 + 'encode by BiLSTM' + '-'*5)
+    #
+    #     # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
+    #     cell_fw = tf.contrib.rnn.BasicLSTMCell(self.state_size, reuse = reuse)
+    #     cell_fw = tf.contrib.rnn.DropoutWrapper(cell_fw, input_keep_prob = keep_prob)
+    #
+    #     cell_bw = tf.contrib.rnn.BasicLSTMCell(self.state_size, reuse = reuse)
+    #     cell_bw = tf.contrib.rnn.DropoutWrapper(cell_bw, input_keep_prob = keep_prob)
+    #
+    #     # defining initial state
+    #     if encoder_state_input is not None:
+    #         initial_state_fw, initial_state_bw = encoder_state_input
+    #     else:
+    #         initial_state_fw = None
+    #         initial_state_bw = None
+    #
+    #     sequence_length = tf.reduce_sum(tf.cast(masks, 'int32'), axis=1)
+    #     sequence_length = tf.reshape(sequence_length, [-1,])
+    #
+    #     # Outputs Tensor shaped: [batch_size, max_time, cell.output_size]
+    #     (outputs_fw, outputs_bw), (final_state_fw, final_state_bw) = tf.nn.bidirectional_dynamic_rnn(
+    #                                         cell_fw = cell_fw,\
+    #                                         cell_bw = cell_bw,\
+    #                                         inputs = inputs,\
+    #                                         sequence_length = sequence_length,
+    #                                         initial_state_fw = initial_state_fw,\
+    #                                         initial_state_bw = initial_state_bw,
+    #                                         dtype = tf.float32)
+    #
+    #     outputs = tf.concat([outputs_fw, outputs_bw], 2)
+    #     # final_state_fw and final_state_bw are the final states of the forwards/backwards LSTM
+    #     final_state = tf.concat([final_state_fw[1], final_state_bw[1]], 1)
+    #     return (outputs, final_state, (final_state_fw, final_state_bw))
 
 class Decoder(object):
     """
@@ -118,9 +152,7 @@ class Decoder(object):
     def BiLSTM_decode(self, knowledge_rep, mask, max_input_length, keep_prob = 1.0):
         '''Decode with BiLSTM '''
         with tf.variable_scope('Modeling'):
-            outputs, final_state, m_state = \
-                 BiLSTM_layer(inputs=knowledge_rep, masks=mask, keep_prob = keep_prob,
-                  state_size=self.state_size, encoder_state_input=None)
+            outputs, _, _ = BiLSTM_layer(knowledge_rep, mask, self.state_size, keep_prob=keep_prob)
 
         with tf.variable_scope("start"):
             start = self.get_logit(outputs, max_input_length)
@@ -135,10 +167,8 @@ class Decoder(object):
     def BiGRU_decode(self, knowledge_rep, mask, max_input_length, keep_prob = 1.0):
         '''Decode with BiGRU'''
         with tf.variable_scope('Modeling'):
-            outputs, final_state, m_state = \
-                 BiGRU_layer(inputs=knowledge_rep, masks=mask, keep_prob = keep_prob,
-                  state_size=self.state_size, encoder_state_input=None)
-
+            outputs, _, _ = BiGRU_layer(knowledge_rep, mask, self.state_size, keep_prob=keep_prob)
+    
         with tf.variable_scope("start"):
             start = self.get_logit(outputs, max_input_length)
             start = softmax_mask_prepro(start, mask)
@@ -253,6 +283,52 @@ class Model(metaclass=ABCMeta):
     def __init__(self, config):
         self.config = config
         self.result_saver = ResultSaver(self.config.output_dir)
+
+    def setup_loss(self, preds):
+        """ Set up loss computation
+        :return:
+        """
+        with vs.variable_scope("loss"):
+            s, e = preds # [None, max length]
+            assert s.get_shape().ndims == 2
+            assert e.get_shape().ndims == 2
+            # loss1 = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=s, labels=self.answer_start_placeholder),)
+            # loss2 = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=e, labels=self.answer_end_placeholder),)
+            loss1 = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=s, labels=self.answer_start_placeholder),)
+            loss2 = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=e, labels=self.answer_end_placeholder),)
+        loss = loss1 + loss2
+        tf.summary.scalar('loss', loss)
+
+        return loss
+
+    def build_exdma(self, opt_op):
+        ''' Implement Exponential Moving Average'''
+        self.exdma = tf.train.ExponentialMovingAverage(self.config.exdma_weight_decay)
+        exdma_op = self.exdma.apply(tf.trainable_variables())
+        with tf.control_dependencies([opt_op]):
+            train_op = tf.group(exdma_op)
+        return train_op
+
+    def setup_embeddings(self):
+        """
+        Loads distributed word representations based on placeholder tokens
+        :return: embeddings representaion of question and context.
+        """
+        with tf.variable_scope("embeddings"):
+            if self.config.RE_TRAIN_EMBED:
+                embeddings = tf.get_variable("embeddings", initializer=self.embeddings)
+            else:
+                embeddings = tf.cast(self.embeddings, dtype=tf.float32)
+
+            question_embeddings = tf.nn.embedding_lookup(embeddings, self.question_placeholder)
+            question_embeddings = tf.reshape(question_embeddings,
+                        shape = [-1, self.max_question_length_placeholder, self.config.embedding_size])
+
+            context_embeddings = tf.nn.embedding_lookup(embeddings, self.context_placeholder)
+            context_embeddings = tf.reshape(context_embeddings,
+                        shape = [-1, self.max_context_length_placeholder, self.config.embedding_size])
+
+        return question_embeddings, context_embeddings
 
     def train(self, session, dataset, train_dir, vocab, checkpoint_prefix):
         ''' Implement main training loop

@@ -20,56 +20,14 @@ from os.path import join as pjoin
 import os
 import pickle
 
-def BiGRU_layer(inputs, masks, state_size, encoder_state_input, keep_prob=1.0, reuse=False):
-    ''' Wrapped BiGRU_layer for reuse'''
-    # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
-    cell_fw = tf.contrib.rnn.GRUCell(state_size)
-    cell_fw = tf.contrib.rnn.DropoutWrapper(cell_fw, input_keep_prob = keep_prob)
-
-    cell_bw = tf.contrib.rnn.GRUCell(state_size)
-    cell_bw = tf.contrib.rnn.DropoutWrapper(cell_bw, input_keep_prob = keep_prob)
-
-    # defining initial state
-    if encoder_state_input is not None:
-        initial_state_fw, initial_state_bw = encoder_state_input
-    else:
-        initial_state_fw = None
-        initial_state_bw = None
-
-    sequence_length = tf.reduce_sum(tf.cast(masks, 'int32'), axis=1)
-    sequence_length = tf.reshape(sequence_length, [-1,])
-
-    # Outputs Tensor shaped: [batch_size, max_time, cell.output_size]
-    (outputs_fw, outputs_bw), (final_state_fw, final_state_bw) = tf.nn.bidirectional_dynamic_rnn(
-                                        cell_fw = cell_fw,\
-                                        cell_bw = cell_bw,\
-                                        inputs = inputs,\
-                                        sequence_length = sequence_length,
-                                        initial_state_fw = initial_state_fw,\
-                                        initial_state_bw = initial_state_bw,
-                                        dtype = tf.float32)
-
-    outputs = tf.concat([outputs_fw, outputs_bw], 2)
-
-    # final_state_fw and final_state_bw are the final states of the forwards/backwards LSTM
-    final_state = tf.concat([final_state_fw, final_state_bw], 1)
-    return (outputs, final_state, (final_state_fw, final_state_bw))
-
-def BiLSTM_layer(inputs, masks, state_size, encoder_state_input, keep_prob=1.0):
+def BiLSTM_layer(inputs, masks, state_size, initial_state_fw=None, initial_state_bw=None, reuse = False, keep_prob=1.0):
     ''' Wrapped BiLSTM_layer for reuse'''
     # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
-    cell_fw = tf.contrib.rnn.BasicLSTMCell(state_size)
+    cell_fw = tf.contrib.rnn.BasicLSTMCell(state_size, reuse = reuse)
     cell_fw = tf.contrib.rnn.DropoutWrapper(cell_fw, input_keep_prob = keep_prob)
 
-    cell_bw = tf.contrib.rnn.BasicLSTMCell(state_size)
+    cell_bw = tf.contrib.rnn.BasicLSTMCell(state_size, reuse = reuse)
     cell_bw = tf.contrib.rnn.DropoutWrapper(cell_bw, input_keep_prob = keep_prob)
-
-    # defining initial state
-    if encoder_state_input is not None:
-        initial_state_fw, initial_state_bw = encoder_state_input
-    else:
-        initial_state_fw = None
-        initial_state_bw = None
 
     sequence_length = tf.reduce_sum(tf.cast(masks, 'int32'), axis=1)
     sequence_length = tf.reshape(sequence_length, [-1,])
@@ -86,8 +44,34 @@ def BiLSTM_layer(inputs, masks, state_size, encoder_state_input, keep_prob=1.0):
 
     outputs = tf.concat([outputs_fw, outputs_bw], 2)
     # final_state_fw and final_state_bw are the final states of the forwards/backwards LSTM
-    final_state = tf.concat([final_state_fw[1], final_state_bw[1]], 1)
-    return (outputs, final_state, (final_state_fw, final_state_bw))
+    # final_state = tf.concat([final_state_fw[1], final_state_bw[1]], 1)
+    # return (outputs, final_state, (final_state_fw, final_state_bw))
+    return outputs, final_state_fw, final_state_bw
+
+def BiGRU_layer(inputs, masks, state_size, initial_state_fw=None, initial_state_bw=None, reuse = False, keep_prob=1.0):
+    ''' Wrapped BiGRU_layer for reuse'''
+    # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
+    cell_fw = tf.contrib.rnn.GRUCell(state_size, reuse = reuse)
+    cell_fw = tf.contrib.rnn.DropoutWrapper(cell_fw, input_keep_prob = keep_prob)
+
+    cell_bw = tf.contrib.rnn.GRUCell(state_size, reuse = reuse)
+    cell_bw = tf.contrib.rnn.DropoutWrapper(cell_bw, input_keep_prob = keep_prob)
+
+    sequence_length = tf.reduce_sum(tf.cast(masks, 'int32'), axis=1)
+    sequence_length = tf.reshape(sequence_length, [-1,])
+
+    # Outputs Tensor shaped: [batch_size, max_time, cell.output_size]
+    (outputs_fw, outputs_bw), (final_state_fw, final_state_bw) = tf.nn.bidirectional_dynamic_rnn(
+                                        cell_fw = cell_fw,\
+                                        cell_bw = cell_bw,\
+                                        inputs = inputs,\
+                                        sequence_length = sequence_length,
+                                        initial_state_fw = initial_state_fw,\
+                                        initial_state_bw = initial_state_bw,
+                                        dtype = tf.float32)
+
+    outputs = tf.concat([outputs_fw, outputs_bw], 2)
+    return outputs, final_state_fw, final_state_bw
 
 def save_graphs(data, path):
 
