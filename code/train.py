@@ -14,13 +14,15 @@ from utils.data_reader import read_data, load_glove_embeddings
 import logging
 import baseline0
 import baseline1
-import baseline2
+import baseline_BiLSTM
+import baseline_BiGRU
 import BiLSTM_encode_decode
 import BiGRU_encode_decode
 import BiGRU_encode
 import BiLSTM_encode_BiGRU_decode
 import BiGRU_encode_BiLSTM_decode
 import Attention
+import Attention_BiLinear
 
 logging.basicConfig(level=logging.INFO)
 
@@ -167,7 +169,9 @@ def main(_):
     elif FLAGS.which_model == "Baseline-LSTM":
         qa = baseline1.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model == "Baseline-BiLSTM":
-        qa = baseline2.QASystem(embeddings, FLAGS)
+        qa = baseline_BiLSTM.QASystem(embeddings, FLAGS)
+    elif FLAGS.which_model == "Baseline-BiGRU":
+        qa = baseline_BiGRU.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model in ["BiLSTM_encode_decode", "BiLSTM_encode_BiLSTM_decode"]:
         qa = BiLSTM_encode_decode.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model in ["BiGRU_encode"]:
@@ -180,6 +184,8 @@ def main(_):
         qa = BiGRU_encode_decode.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model in ["Attention"]:
         qa = Attention.QASystem(embeddings, FLAGS)
+    elif FLAGS.which_model in ["Attention-BiLinear"]:
+        qa = Attention_BiLinear.QASystem(embeddings, FLAGS)
     else:
         logging.info("No such specified model, use default baseline model")
         raise ValueError('Could not find {} model'.format(FLAGS.which_model))

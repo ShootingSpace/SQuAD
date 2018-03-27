@@ -86,41 +86,6 @@ class Encoder(object):
         return BiGRU_layer(inputs, masks, self.state_size, initial_state_fw,
                                                                  initial_state_bw, reuse, keep_prob)
 
-    # def BiLSTM_encode(self, inputs, masks, encoder_state_input = None, reuse = False, keep_prob = 1.0):
-    #
-    #     logging.debug('-'*5 + 'encode by BiLSTM' + '-'*5)
-    #
-    #     # 'outputs' is a tensor of shape [batch_size, max_time, cell_state_size]
-    #     cell_fw = tf.contrib.rnn.BasicLSTMCell(self.state_size, reuse = reuse)
-    #     cell_fw = tf.contrib.rnn.DropoutWrapper(cell_fw, input_keep_prob = keep_prob)
-    #
-    #     cell_bw = tf.contrib.rnn.BasicLSTMCell(self.state_size, reuse = reuse)
-    #     cell_bw = tf.contrib.rnn.DropoutWrapper(cell_bw, input_keep_prob = keep_prob)
-    #
-    #     # defining initial state
-    #     if encoder_state_input is not None:
-    #         initial_state_fw, initial_state_bw = encoder_state_input
-    #     else:
-    #         initial_state_fw = None
-    #         initial_state_bw = None
-    #
-    #     sequence_length = tf.reduce_sum(tf.cast(masks, 'int32'), axis=1)
-    #     sequence_length = tf.reshape(sequence_length, [-1,])
-    #
-    #     # Outputs Tensor shaped: [batch_size, max_time, cell.output_size]
-    #     (outputs_fw, outputs_bw), (final_state_fw, final_state_bw) = tf.nn.bidirectional_dynamic_rnn(
-    #                                         cell_fw = cell_fw,\
-    #                                         cell_bw = cell_bw,\
-    #                                         inputs = inputs,\
-    #                                         sequence_length = sequence_length,
-    #                                         initial_state_fw = initial_state_fw,\
-    #                                         initial_state_bw = initial_state_bw,
-    #                                         dtype = tf.float32)
-    #
-    #     outputs = tf.concat([outputs_fw, outputs_bw], 2)
-    #     # final_state_fw and final_state_bw are the final states of the forwards/backwards LSTM
-    #     final_state = tf.concat([final_state_fw[1], final_state_bw[1]], 1)
-    #     return (outputs, final_state, (final_state_fw, final_state_bw))
 
 class Decoder(object):
     """
@@ -168,7 +133,7 @@ class Decoder(object):
         '''Decode with BiGRU'''
         with tf.variable_scope('Modeling'):
             outputs, _, _ = BiGRU_layer(knowledge_rep, mask, self.state_size, keep_prob=keep_prob)
-    
+
         with tf.variable_scope("start"):
             start = self.get_logit(outputs, max_input_length)
             start = softmax_mask_prepro(start, mask)
@@ -198,9 +163,75 @@ class Attention(object):
     def __init__(self):
         pass
 
-    def forwards(self, hc, hq, hc_mask, hq_mask, max_context_length_placeholder, max_question_length_placeholder):
+    def aoa(self, hc, hq, hc_mask, hq_mask, max_context_length_placeholder, max_question_length_placeholder):
         '''combine context hidden state(hc) and question hidden state(hq) with attention
              measured similarity = hc.T * hq
+
+             Context-to-query (C2Q) attention signifies which query words are most relevant to each P context word.
+                attention_c2q = softmax(similarity)
+                hq_hat = sum(attention_c2q*hq)
+
+             Query-to-context (Q2C) attention signifies which context words have the closest similarity
+                to one of the query words and are hence critical for answering the query.
+                attention_q2c = softmax(similarity.T)
+                hc_hat = sum(attention_q2c*hc)
+
+             combine with β activation: β function can be an arbitrary trainable neural network
+             g = β(hc, hq, hc_hat, hq_hat)
+        '''
+        """
+        :param hc: [None, max_context_length_placeholder, d_Bi]
+        :param hq: [None, max_question_length_placeholder, d_Bi]
+        :param hc_mask:  [None, max_context_length_placeholder]
+        :param hq_mask:  [None, max_question_length_placeholder]
+
+        :return: [N, max_context_length_placeholder, d_com]
+        """
+        pass
+
+    def forwards_complex(self, hc, hq, hc_mask, hq_mask, max_context_length_placeholder, max_question_length_placeholder):
+        '''combine context hidden state(hc) and question hidden state(hq) with attention
+             measured similarity = hc : hq : hc.T * hq
+        '''
+        pass
+
+    def forwards_bilinear(self, hc, hq, hc_mask, hq_mask, max_context_length_placeholder,
+                                max_question_length_placeholder, is_train, keep_prob):
+        '''combine context hidden state(hc) and question hidden state(hq) with global attention
+            bilinear score = hc.T *W *hq
+        '''
+        d_en = hc.get_shape().as_list()[-1]
+        # (BS, MPL, MQL)
+        interaction_weights = tf.get_variable("W_interaction", shape=[d_en, d_en])
+        hc_W = tf.reshape(tf.reshape(hc, shape=[-1, d_en]) @ interaction_weights,
+                          shape=[-1, max_context_length_placeholder, d_en])
+
+        # (BS, MPL, HS * 2) @ (BS, HS * 2, MCL) -> (BS ,MCL, MQL)
+        score = hc_W @ tf.transpose(hq, [0, 2, 1])
+        # Create mask (BS, MPL) -> (BS, MPL, 1) -> (BS, MPL, MQL)
+        hc_mask_aug = tf.tile(tf.expand_dims(hc_mask, -1), [1, 1, max_question_length_placeholder])
+        hq_mask_aug = tf.tile(tf.expand_dims(hq_mask, -2), [1, max_context_length_placeholder, 1])
+        hq_mask_aug = hc_mask_aug & hq_mask_aug
+        score = softmax_mask_prepro(score, hq_mask_aug)
+
+        # (BS, MPL, MQL)
+        alignment_weights = tf.nn.softmax(score)
+
+        # (BS, MPL, MQL) @ (BS, MQL, HS * 2) -> (BS, MPL, HS * 2)
+        context_aware = tf.matmul(alignment_weights, hq)
+
+        concat_hidden = tf.concat([context_aware, hc], axis=2)
+        concat_hidden = tf.cond(is_train, lambda: tf.nn.dropout(concat_hidden, keep_prob), lambda: concat_hidden)
+
+        # (HS * 4, HS * 2)
+        Ws = tf.get_variable("Ws", shape=[d_en * 2, d_en])
+        attention = tf.nn.tanh(tf.reshape(tf.reshape(concat_hidden, [-1, d_en * 2]) @ Ws,
+                                          [-1, max_context_length_placeholder, d_en]))
+        return (attention)
+        
+    def forwards(self, hc, hq, hc_mask, hq_mask, max_context_length_placeholder, max_question_length_placeholder):
+        '''combine context hidden state(hc) and question hidden state(hq) with: bidirectional attention flow
+             simple score = hc.T * hq
 
              Context-to-query (C2Q) attention signifies which query words are most relevant to each P context word.
                 attention_c2q = softmax(similarity)
