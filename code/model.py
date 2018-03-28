@@ -228,7 +228,7 @@ class Attention(object):
         attention = tf.nn.tanh(tf.reshape(tf.reshape(concat_hidden, [-1, d_en * 2]) @ Ws,
                                           [-1, max_context_length_placeholder, d_en]))
         return (attention)
-        
+
     def forwards(self, hc, hq, hc_mask, hq_mask, max_context_length_placeholder, max_question_length_placeholder):
         '''combine context hidden state(hc) and question hidden state(hq) with: bidirectional attention flow
              simple score = hc.T * hq
@@ -416,7 +416,7 @@ class Model(metaclass=ABCMeta):
             self.validate(session, validation_set)
 
             f1, em = self.evaluate_answer(session, validation_set, vocab,
-                        sample=self.config.model_selection_sample_size, log=True)
+                sample=self.config.model_selection_sample_size, log=True, indicaiton = 'validation')
 
 
             # Saving the model

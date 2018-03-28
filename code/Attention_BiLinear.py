@@ -11,7 +11,7 @@ import tensorflow as tf
 from tensorflow.python.ops import variable_scope as vs
 from utils.util import *
 from utils.evaluate import exact_match_score, f1_score
-from model import Model, Encoder, Decoder
+from model import Model, Encoder, Decoder, Attention
 from utils.result_saver import ResultSaver
 
 logging.basicConfig(level=logging.INFO)
@@ -28,7 +28,7 @@ class QASystem(Model):
 
 
 
-        self.encoder = Encoder(config.encoder_state_size, self.config)
+        self.encoder = Encoder(config.encoder_state_size)
         self.decoder = Decoder(output_size=config.output_size, state_size = config.decoder_state_size)
         self.attention = Attention()
 
@@ -69,13 +69,6 @@ class QASystem(Model):
             self.train_op = opt_op
         self.merged = tf.summary.merge_all()
 
-    def build_exdma(self, opt_op):
-        ''' Implement Exponential Moving Average'''
-        self.exdma = tf.train.ExponentialMovingAverage(self.config.exdma_weight_decay)
-        exdma_op = self.exdma.apply(tf.trainable_variables())
-        with tf.control_dependencies([opt_op]):
-            train_op = tf.group(exdma_op)
-        return train_op
 
     def setup_system(self):
         """
@@ -97,22 +90,22 @@ class QASystem(Model):
         '''
 
         with tf.variable_scope('question'):
-            hq, question_repr, question_state = \
-                self.encoder.BiLSTM_encode(self.question_embeddings, self.question_mask_placeholder,
-                                    dropout = self.dropout_placeholder)
+            hq, question_state_fw, question_state_bw = \
+                self.encoder.BiGRU_encode(self.question_embeddings, self.question_mask_placeholder,
+                                    keep_prob = self.dropout_placeholder)
             if self.config.QA_ENCODER_SHARE:
-                tf.get_variable_scope().reuse_variables()
-                hc, context_state =\
-                     self.encoder.BiLSTM_encode(self.context_embeddings, self.context_mask_placeholder,
-                                         encoder_state_input = question_state,
-                                         dropout = self.dropout_placeholder)
+                #tf.get_variable_scope().reuse_variables()
+                hc, context_state_fw, context_state_bw =\
+                     self.encoder.BiGRU_encode(self.context_embeddings, self.context_mask_placeholder,
+                             initial_state_fw = question_state_fw, initial_state_bw = question_state_bw,
+                             reuse = True, keep_prob = self.dropout_placeholder)
 
         if not self.config.QA_ENCODER_SHARE:
             with tf.variable_scope('context'):
-                hc, context_repr, context_state =\
-                     self.encoder.BiLSTM_encode(self.context_embeddings, self.context_mask_placeholder,
-                                         encoder_state_input = question_state,
-                                         dropout=self.dropout_placeholder)
+                hc, context_state_fw, context_state_bw =\
+                     self.encoder.BiGRU_encode(self.context_embeddings, self.context_mask_placeholder,
+                             initial_state_fw = question_state_fw, initial_state_bw = question_state_bw,
+                                         keep_prob=self.dropout_placeholder)
 
         d_Bi = self.config.encoder_state_size*2
         assert hc.get_shape().as_list() == [None, None, d_Bi], (
@@ -138,53 +131,16 @@ class QASystem(Model):
              g = β(hc, hq, hc_hat, hq_hat)
         '''
         # concat[h, u_a, h*u_a, h*h_a]
-        g = self.attention.forwards(hc, hq, self.context_mask_placeholder, self.question_mask_placeholder,
+        attention = self.attention.forwards_bilinear(hc, hq, self.context_mask_placeholder, self.question_mask_placeholder,
                                     max_context_length_placeholder = self.max_context_length_placeholder,
-                                    max_question_length_placeholder = self.max_question_length_placeholder)
+                                    max_question_length_placeholder = self.max_question_length_placeholder,
+                                    is_train=(self.dropout_placeholder < 1.0), keep_prob=self.dropout_placeholder) 
         d_com = d_Bi*4
 
 
 
         '''Step 3: decoding   '''
         with tf.variable_scope("decoding"):
-            start, end = self.decoder.BiLSTM_decode(g, self.context_mask_placeholder,
-                                             self.max_context_length_placeholder, self.dropout_placeholder)
+            start, end = self.decoder.BiGRU_decode(attention, self.context_mask_placeholder,
+                                    self.max_context_length_placeholder, self.dropout_placeholder)
         return start, end
-
-    def setup_loss(self, preds):
-        """ Set up loss computation
-        :return:
-        """
-        with vs.variable_scope("loss"):
-            s, e = preds # [None, max length]
-            assert s.get_shape().ndims == 2
-            assert e.get_shape().ndims == 2
-            loss1 = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=s, labels=self.answer_start_placeholder),)
-            loss2 = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=e, labels=self.answer_end_placeholder),)
-            # loss1 = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=s, labels=self.answer_start_placeholder),)
-            # loss2 = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=e, labels=self.answer_end_placeholder),)
-        loss = loss1 + loss2
-        tf.summary.scalar('loss', loss)
-
-        return loss
-
-    def setup_embeddings(self):
-        """
-        Loads distributed word representations based on placeholder tokens
-        :return: embeddings representaion of question and context.
-        """
-        with tf.variable_scope("embeddings"):
-            if self.config.RE_TRAIN_EMBED:
-                embeddings = tf.get_variable("embeddings", initializer=self.embeddings)
-            else:
-                embeddings = tf.cast(self.embeddings, dtype=tf.float32)
-
-            question_embeddings = tf.nn.embedding_lookup(embeddings, self.question_placeholder)
-            question_embeddings = tf.reshape(question_embeddings,
-                        shape = [-1, self.max_question_length_placeholder, self.config.embedding_size])
-
-            context_embeddings = tf.nn.embedding_lookup(embeddings, self.context_placeholder)
-            context_embeddings = tf.reshape(context_embeddings,
-                        shape = [-1, self.max_context_length_placeholder, self.config.embedding_size])
-
-        return question_embeddings, context_embeddings
