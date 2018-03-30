@@ -22,6 +22,7 @@ import BiGRU_encode
 import BiLSTM_encode_BiGRU_decode
 import BiGRU_encode_BiLSTM_decode
 import Attention_BiAF
+import Attention_BiAFCOM
 import Attention_BiLinear
 
 logging.basicConfig(level=logging.INFO)
@@ -184,6 +185,8 @@ def main(_):
         qa = BiGRU_encode_decode.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model in ["Attention-BiAF"]:
         qa = Attention_BiAF.QASystem(embeddings, FLAGS)
+    elif FLAGS.which_model in ["Attention-BiAFCOM"]:
+        qa = Attention_BiAFCOM.QASystem(embeddings, FLAGS)
     elif FLAGS.which_model in ["Attention-BiLinear"]:
         qa = Attention_BiLinear.QASystem(embeddings, FLAGS)
     else:

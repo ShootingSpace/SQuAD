@@ -16,6 +16,8 @@ from utils.util import *
 # from utils.util import save_graphs, variable_summaries, get_optimizer, softmax_mask_prepro, ConfusionMatrix, Progbar, minibatches, one_hot, minibatch, get_best_span
 from utils.evaluate import exact_match_score, f1_score
 from utils.result_saver import ResultSaver
+from functools import reduce
+from operator import mul
 
 logging.basicConfig(level=logging.INFO)
 
@@ -163,37 +165,115 @@ class Attention(object):
     def __init__(self):
         pass
 
-    def aoa(self, hc, hq, hc_mask, hq_mask, max_context_length_placeholder, max_question_length_placeholder):
-        '''combine context hidden state(hc) and question hidden state(hq) with attention
-             measured similarity = hc.T * hq
-
-             Context-to-query (C2Q) attention signifies which query words are most relevant to each P context word.
-                attention_c2q = softmax(similarity)
-                hq_hat = sum(attention_c2q*hq)
-
-             Query-to-context (Q2C) attention signifies which context words have the closest similarity
-                to one of the query words and are hence critical for answering the query.
-                attention_q2c = softmax(similarity.T)
-                hc_hat = sum(attention_q2c*hc)
-
-             combine with β activation: β function can be an arbitrary trainable neural network
-             g = β(hc, hq, hc_hat, hq_hat)
-        '''
-        """
-        :param hc: [None, max_context_length_placeholder, d_Bi]
-        :param hq: [None, max_question_length_placeholder, d_Bi]
-        :param hc_mask:  [None, max_context_length_placeholder]
-        :param hq_mask:  [None, max_question_length_placeholder]
-
-        :return: [N, max_context_length_placeholder, d_com]
-        """
-        pass
-
-    def forwards_complex(self, hc, hq, hc_mask, hq_mask, max_context_length_placeholder, max_question_length_placeholder):
+    def forwards_complex(self, hc, hq, hc_mask, hq_mask, max_context_length_placeholder, 
+                       max_question_length_placeholder, is_train, keep_prob):
         '''combine context hidden state(hc) and question hidden state(hq) with attention
              measured similarity = hc : hq : hc.T * hq
         '''
-        pass
+        s = self._similarity_matrix(hq, hc, max_question_length_placeholder, 
+        max_context_length_placeholder, hq_mask, hc_mask, is_train, keep_prob)
+        # C2Q
+
+        # (BS, MCL, MQL)
+        weights_c2q = tf.nn.softmax(s)
+
+        # (BS, MCL, MQL) @ (BS, MQL, HS * 2) -> (BS, MCL, HS * 2)
+        query_aware = weights_c2q @ hq
+
+        # Q2C
+
+        # (BS, MCL, MQL) -> (BS, MCL)
+        # We are effectively looking through all the question words j's to some context word i and finding the 
+        # maximum of those context words 
+        score_q2c = tf.reduce_max(s, axis=-1)
+
+        # (BS, MCL)
+        weights_q2c = tf.expand_dims(tf.nn.softmax(score_q2c), -1)
+
+        # (BS, HS)
+        context_aware = tf.reduce_sum(tf.multiply(weights_q2c, hc), axis=1)
+
+        # (BS, MCL, HS * 2)
+        context_aware = tf.tile(tf.expand_dims(context_aware, 1), [1, max_context_length_placeholder, 1])
+
+        # [(BS, MCL, HS * 2), (BS, MCL, HS * 2), (BS, MCL, HS * 2), (BS, MCL, HS * 2)]
+        biattention = tf.nn.tanh(tf.concat([hc, query_aware, hc * query_aware, hc * context_aware], 2))
+
+        return (biattention)
+        
+    def _similarity_matrix(self, hq, hc, max_question_length, max_context_length, question_mask, context_mask, is_train,
+                           keep_prob):
+        def _flatten(tensor, keep):
+            fixed_shape = tensor.get_shape().as_list()
+            start = len(fixed_shape) - keep
+    
+            # Calculate (BS * MCL * MQL)
+            left = reduce(mul, [fixed_shape[i] or tf.shape(tensor)[i] for i in range(start)])
+    
+            # out_shape is simply HS * 2
+            out_shape = [left] + [fixed_shape[i] or tf.shape(tensor)[i] for i in range(start, len(fixed_shape))]
+    
+            # (BS * MCL * MQL, HS * 2)
+            flat = tf.reshape(tensor, out_shape)
+            return (flat)
+    
+        def _reconstruct(tensor, ref, keep):        
+            ref_shape = ref.get_shape().as_list()
+            tensor_shape = tensor.get_shape().as_list()
+            ref_stop = len(ref_shape) - keep
+            tensor_start = len(tensor_shape) - keep
+    
+            # [BS, MCL, MQL]
+            pre_shape = [ref_shape[i] or tf.shape(ref)[i] for i in range(ref_stop)]
+    
+            # [1]
+            keep_shape = [tensor_shape[i] or tf.shape(tensor)[i] for i in range(tensor_start, len(tensor_shape))]
+            # pre_shape = [tf.shape(ref)[i] for i in range(len(ref.get_shape().as_list()[:-keep]))]
+            # keep_shape = tensor.get_shape().as_list()[-keep:]
+    
+            # [BS, MCL, MQL, 1]
+            target_shape = pre_shape + keep_shape
+            out = tf.reshape(tensor, target_shape)
+            out = tf.squeeze(out, [len(args[0].get_shape().as_list()) - 1])
+            return (out)
+        # (BS, MCL, MQL, HS * 2)
+        d = hq.get_shape().as_list()[-1]
+        logging.debug("d is: {}".format(d))
+        hc_aug = tf.tile(tf.reshape(hc, shape=[-1, max_context_length, 1, d]),
+                         [1, 1, max_question_length, 1])
+
+        # (BS, MCL, MQL, HS * 2)
+        hq_aug = tf.tile(tf.reshape(hq, shape=[-1, 1, max_question_length, d]),
+                         [1, max_context_length, 1, 1])
+
+        # [(BS, MCL, MQL, HS * 2), (BS, MCL, MQL, HS * 2), (BS, MCL, MQL, HS * 2)]
+        args = [hc_aug, hq_aug, hc_aug * hq_aug]
+
+        # [(BS * MCL * MQL, HS * 2), (BS * MCL * MQL, HS * 2), (BS * MCL * MQL, HS * 2)]
+        args_flat = [_flatten(arg, 1) for arg in args]
+        args_flat = [tf.cond(is_train, lambda: tf.nn.dropout(arg, keep_prob), lambda: arg) for arg in args_flat]
+
+        d_concat = d * 3
+        W = tf.get_variable("W", shape=[d_concat, 1])
+        b = tf.get_variable("b", shape=[1])
+
+        # Calculating a(h, u) = w_s^(t)[h; u; h * u]
+        # (BS * MCL * MQL, HS * 6) @ (HS * 6, 1) + (1) -> (BS * MCL * MQL, 1) 
+        res = tf.concat(args_flat, 1) @ W + b
+
+        # (BS * MCL * MQL, 1) -> (BS, MCL, MQL)
+        similarity_matrix = _reconstruct(res, args[0], 1)
+        logging.debug("similiarity_matrix after reconstruct: {}".format(similarity_matrix.get_shape()))
+        context_mask_aug = tf.tile(tf.expand_dims(context_mask, 2), [1, 1, max_question_length])
+        question_mask_aug = tf.tile(tf.expand_dims(question_mask, 1), [1, max_context_length, 1])
+
+        mask_aug = context_mask_aug & question_mask_aug
+        similarity_matrix = softmax_mask_prepro(similarity_matrix, mask_aug)
+
+        
+            
+        return (similarity_matrix)
+
 
     def forwards_bilinear(self, hc, hq, hc_mask, hq_mask, max_context_length_placeholder,
                                 max_question_length_placeholder, is_train, keep_prob):
