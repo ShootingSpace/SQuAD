@@ -1,18 +1,11 @@
-# Requirements
+The Bidirectional Attention Flow model is based on the
+1. Original paper [Seo, Minjoon, Kembhavi, Aniruddha, Farhadi, Ali, and Ha-jishirzi, Hannaneh. Bidirectional attention flow for ma-chine comprehension.arXiv preprint arXiv:1611.01603,2016b](https://arxiv.org/abs/1611.01603) and [implementation](https://github.com/allenai/bi-att-flow)
+2. Standford cs224n course project - [Question Answering System with Bi-Directional Attention Flow](http://web.stanford.edu/class/cs224n/archive/WWW_1617/reports/2760784.pdf)
 
-The starter code provided pressuposes a working installation of Python 2.7, as well as a TensorFlow 0.12.1.
+The Bi-Linear Attention model (interactive matrix) is based on [Luong, Minh-Thang, Pham, Hieu, and Manning, Christo-pher D. Effective approaches to attention-based neuralmachine translation.arXiv preprint arXiv:1508.04025, 2015.](https://arxiv.org/abs/1508.04025)
 
-It should also install all needed dependnecies through
-`pip install -r requirements.txt`.
+## Requirements
+Python 3.6, TensorFlow 1.4.
 
-# Running your assignment
-
-You can get started by downloading the datasets and doing dome basic preprocessing:
-
-$ code/get_started.sh
-
-Note that you will always want to run your code from this assignment directory, not the code directory, like so:
-
+## Running
 $ python code/train.py
-
-This ensures that any files created in the process don't pollute the code directoy.
